@@ -476,20 +476,26 @@ VIEWS.enroll = () => {
 };
 
 function courseMeta(sem){return (DB.meta[sem]?.courses)||[]}
+/* 강의료: 1개 분반 210,000원. 분반은 100명 기준, 나머지 10명 이하는 앞 분반에 포함 (예: 203명→2분반, 211명→3분반) */
+const FEE_PER_BAN=210000, BAN_SIZE=100, BAN_TOL=10;
+const autoBan = n => n<=0 ? 0 : Math.max(1, Math.floor(n/BAN_SIZE) + ((n%BAN_SIZE)>BAN_TOL?1:0));
+const banCount = (sem,k) => DB.records.filter(r=>r.s===sem&&r.k===k&&r.g==='교과').length;   // 교과 수강 인원(비교과 제외)
+function banInfo(sem,k,m){ const n=banCount(sem,k), a=autoBan(n), man=m&&m.banManual&&m.ban!=null&&m.ban!==''?+m.ban:null; const b=man??a; return {n,auto:a,ban:b,manual:man!=null&&man!==a,fee:b*FEE_PER_BAN}; }
 VIEWS.leads = () => {
   const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
   const meta = courseMeta(sem);
   const rs = DB.records.filter(r=>r.s===sem);
   const cnt = groupBy(rs,'k');
   const names = uniq([...meta.map(m=>m.k), ...cnt.keys()]).sort(byCourse);
-  const data = names.map((k,i)=>{const m=meta.find(x=>x.k===k)||{};const v=cnt.get(k)||[];return {i:i+1,k,lead:m.lead||'',n:v.length,d:v.filter(r=>r.c==='수료').length,ban:m.ban||'',fee:m.fee||0,dev:m.dev||0,rep:m.rep||0,weeks:(m.weeks||[]).length}});
+  const data = names.map((k,i)=>{const m=meta.find(x=>x.k===k)||{};const v=cnt.get(k)||[];const bi=banInfo(sem,k,m);return {i:i+1,k,lead:m.lead||'',n:v.length,bn:bi.n,d:v.filter(r=>r.c==='수료').length,ban:bi.ban,auto:bi.auto,manual:bi.manual,fee:bi.fee,dev:m.dev||0,rep:m.rep||0,weeks:(m.weeks||[]).length}});
   const sum=(f)=>data.reduce((s,x)=>s+(+x[f]||0),0);
   return `<div class="toolbar"><span class="meta">${semLabel(sem)} 과정책임자·운영비 · 인원은 수강 자료에서 자동 집계</span>
     ${isPub()?'':`<button class="btn" onclick="go('input')">기본자료 입력에서 수정</button>
     ${meta.length?'':`<button class="btn" onclick="copyMeta('${sem}')">이전 학기 정보 복사</button>`}`}</div>
+    <div class="hint">강의료 = 분반 수 × 210,000원. 분반은 교과 수강 인원 100명 기준이며, 100명을 넘는 나머지가 10명 이하이면 앞 분반에 포함합니다 (예: 110명→1분반, 111명→2분반, 203명→2분반). ${isPub()?'':'기본자료 입력에서 분반을 직접 적으면 「조정」으로 표시되고 그 값으로 계산합니다.'}</div>
     ${meta.length?'':`<div class="hint">${semLabel(sem)}의 과정책임자 정보가 아직 없습니다.${isPub()?'':' 「이전 학기 정보 복사」 또는 「기본자료 입력」에서 등록하세요.'}</div>`}
-    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반',k:'ban',n:1},{t:'강의료',k:'fee',n:1},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
-      {foot:['','','합계','',fmt(sum('n')),fmt(sum('d')),'',fmt(sum('fee')),fmt(sum('dev')),fmt(sum('rep')),'']})}`;
+    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반 기준 인원',k:'bn',n:1},{t:'분반',k:'ban',n:1,f:r=>r.manual?`<b>${r.ban}</b> <span class="pill p-ing" title="자동 계산 ${r.auto}분반">조정</span>`:fmt(r.ban)},{t:'강의료',k:'fee',n:1},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
+      {foot:['','','합계','',fmt(sum('n')),fmt(sum('d')),fmt(sum('bn')),fmt(sum('ban')),fmt(sum('fee')),fmt(sum('dev')),fmt(sum('rep')),'']})}`;
 };
 function copyMeta(sem){
   const prev = DB.sems.filter(s=>s<sem && courseMeta(s).length).pop() || DB.sems.filter(s=>courseMeta(s).length).pop();
@@ -617,9 +623,9 @@ VIEWS.input = () => {
     <div class="hint">여기 입력한 문장과 아래 교과목 정보가 개발보고서·완료보고서에 그대로 들어갑니다. 숫자(수강·수료·대학별 표)는 수강 자료에서 자동 계산됩니다. 입력값은 이 브라우저에만 저장됩니다. <b>게시 주소에 반영하려면 「입력 내용 내보내기」 파일을 Claude에게 주거나 자료 저장소의 data/meta.json으로 올리세요.</b></div>
     <div class="form">${INPUT_FIELDS.map(([k,l,ph])=>`<label>${l}</label>${['goal','devSummary','devQuality','outcome','issue','plan'].includes(k)?`<textarea data-k="${k}" placeholder="${esc(ph)}">${esc(info[k]||'')}</textarea>`:`<input type="text" data-k="${k}" value="${esc(info[k]||'')}" placeholder="${esc(ph)}">`}`).join('')}</div>
     <h3>교과목 정보 (과정책임자 · 운영비 · 개발 진도)</h3>
-    <div class="tw"><table><thead><tr><th>교과목명</th><th>과정책임자</th><th class="n">분반</th><th class="n">강의료</th><th class="n">개발비</th><th class="n">보고서비</th><th>개발 완료 주차 (예: 1,2,3)</th></tr></thead><tbody>
-    ${names.map(k=>{const c=meta.find(x=>x.k===k)||{};return `<tr data-course="${esc(k)}"><td>${esc(k)}</td><td><input type="text" data-f="lead" value="${esc(c.lead||'')}" style="width:130px"></td>
-      <td><input type="number" data-f="ban" value="${c.ban||1}" style="width:60px"></td><td><input type="number" data-f="fee" value="${c.fee||0}" style="width:100px"></td>
+    <div class="tw"><table><thead><tr><th>교과목명</th><th>과정책임자</th><th class="n">교과 인원</th><th class="n">분반 (비우면 자동)</th><th class="n">강의료</th><th class="n">개발비</th><th class="n">보고서비</th><th>개발 완료 주차 (예: 1,2,3)</th></tr></thead><tbody>
+    ${names.map(k=>{const c=meta.find(x=>x.k===k)||{};const bi=banInfo(sem,k,c);return `<tr data-course="${esc(k)}"><td>${esc(k)}</td><td><input type="text" data-f="lead" value="${esc(c.lead||'')}" style="width:130px"></td>
+      <td class="n">${fmt(bi.n)}</td><td><input type="number" min="0" data-f="ban" value="${c.banManual&&c.ban!=null?c.ban:''}" placeholder="${bi.auto}" style="width:70px" title="비우면 자동 ${bi.auto}분반"></td><td class="n">${fmt(bi.fee)}</td>
       <td><input type="number" data-f="dev" value="${c.dev||0}" style="width:110px"></td><td><input type="number" data-f="rep" value="${c.rep||0}" style="width:100px"></td>
       <td><input type="text" data-f="weeks" value="${(c.weeks||[]).join(',')}" style="width:140px"></td></tr>`}).join('')}
     </tbody></table></div>
@@ -630,7 +636,7 @@ VIEWS.input = () => {
 };
 function saveInput(sem){
   const info={}; document.querySelectorAll('[data-k]').forEach(e=>info[e.dataset.k]=e.value.trim());
-  const courses=[...document.querySelectorAll('tr[data-course]')].map(tr=>{const g=f=>tr.querySelector(`[data-f="${f}"]`).value;return {k:tr.dataset.course,lead:g('lead').trim(),ban:+g('ban')||1,fee:+g('fee')||0,dev:+g('dev')||0,rep:+g('rep')||0,weeks:g('weeks').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=14)}});
+  const courses=[...document.querySelectorAll('tr[data-course]')].map(tr=>{const g=f=>tr.querySelector(`[data-f="${f}"]`).value;return {k:tr.dataset.course,lead:g('lead').trim(),ban:g('ban')===''?null:+g('ban'),banManual:g('ban')!=='',dev:+g('dev')||0,rep:+g('rep')||0,weeks:g('weeks').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=14)}});
   const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),info,courses}; if(LS.set('meta',m)){loadDB();toast('저장했습니다 · 보고서에 바로 반영됩니다')}
 }
 
@@ -669,7 +675,7 @@ VIEWS.devrep = () => {
   const cols=[{t:'No',k:'i',n:1},{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도',k:'w',n:1,raw:r=>`${r.weeks.length}/14주`},{t:'수강신청',k:'n',n:1}];
   const data=dev.map((c,i)=>({i:i+1,...c,weeks:c.weeks||[],w:`${(c.weeks||[]).length}/14주`,n:(cnt.get(c.k)||[]).length}));
   const wk=(c)=>`<div style="display:flex;gap:2px">${Array.from({length:14},(_,i)=>`<span title="${i+1}주" style="width:14px;height:14px;border-radius:3px;background:${(c.weeks||[]).includes(i+1)?'var(--bar)':'var(--panel2)'};border:1px solid var(--line)"></span>`).join('')}</div>`;
-  const leadsAll = meta.filter(c=>c.lead);
+  const leadsAll = meta.filter(c=>c.lead).map(c=>{const bi=banInfo(sem,c.k,c);return {...c,ban:bi.ban,fee:bi.fee}});
   return reportShell({eyebrow:'공유학점 · 개발보고서',title:'교과목 개발보고서',sub:`${info.title||'공유학점 교육과정'} · ${semLabel(sem)}`,
     lead:`교과목 정보(개발비·과정책임자·개발 주차)와 수강신청 자료로 자동 생성한 보고서입니다.`,
     ck:[[dev.length,'개발 교과목'],[fmt(totDev)+'원','개발비'],[prog+'%','평균 개발 진도']],
@@ -678,7 +684,7 @@ VIEWS.devrep = () => {
         md:`- 사업명: ${info.title||'–'}\n- 주관기관: ${info.org||'–'}\n- 운영기간: ${info.period||'–'}\n- 담당자: ${info.manager||'–'}\n\n${mdt(info.goal)}`},
       {t:'개발 교과목 현황',html:dev.length?table(cols.map(c=>c.k==='w'?{...c,f:wk}:c),data,{foot:['','합계','',fmt(totDev),fmt(totRep),prog+'%',fmt(data.reduce((s,x)=>s+x.n,0))]}):'<p class="empty">개발비 또는 개발 주차가 입력된 교과목이 없습니다.</p>',md:md2table(cols,data)},
       {t:'개발 개요',html:txt(info.devSummary),md:mdt(info.devSummary)},
-      {t:'과정책임자 배정',html:table([{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'분반',k:'ban',n:1}],leadsAll),md:md2table([{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'분반',k:'ban'}],leadsAll)},
+      {t:'과정책임자 배정',html:table([{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'분반',k:'ban',n:1},{t:'강의료',k:'fee',n:1}],leadsAll,{foot:['','합계',fmt(leadsAll.reduce((s,x)=>s+x.ban,0)),fmt(leadsAll.reduce((s,x)=>s+x.fee,0))]}),md:md2table([{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'분반',k:'ban'}],leadsAll)},
       {t:'예산 집행',html:`<p>개발비 <b>${fmt(totDev)}원</b>, 보고서비 <b>${fmt(totRep)}원</b>, 합계 <b>${fmt(totDev+totRep)}원</b>.</p>`,md:`개발비 ${fmt(totDev)}원, 보고서비 ${fmt(totRep)}원, 합계 ${fmt(totDev+totRep)}원`},
       {t:'품질관리 · 검수',html:txt(info.devQuality),md:mdt(info.devQuality)},
     ]});
