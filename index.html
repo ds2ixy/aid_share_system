@@ -308,6 +308,10 @@ const ALIAS = {}; // 이름만 바뀐 같은 과목이 생기면 '옛 이름':'�
 // 「AI와 메타버스 시대, 윤리적 실천」은 25학년도 과목, 「AI 윤리와 책임」은 26학년도부터 개설된 별개 과목
 const ckey = k => String(ALIAS[k]||k||'').replace(/\s+/g,'').toLowerCase();
 const CORDER = new Map(); CATS.forEach(c=>c.list.forEach(k=>CORDER.set(ckey(k),{cat:c.cat,i:CORDER.size})));
+/* 수강 자료에 없어도 개설 과목으로 표시할 과목 (from 학기부터) */
+const OFFERED = [{k:'AI 윤리와 책임', from:'2026-1', note:'수강생 별도 관리'}];
+const offeredIn = sem => sem==='ALL' ? [] : OFFERED.filter(o=>sem>=o.from);
+const offerNote = k => (OFFERED.find(o=>o.k===k)||{}).note;
 const cinfo = k => CORDER.get(ckey(k)) || {cat:'기타',i:999};
 const byCourse = (a,b) => cinfo(a).i-cinfo(b).i || String(a).localeCompare(String(b));
 /* 마이크로디그리: 해당 교과목 중 몇 개를 들었는지로 구분 (3개 이상 / 2개) */
@@ -485,11 +489,11 @@ VIEWS.summary = () => {
   const gsel = S.g||'교과';
   const rs = rows({allUniv:true}).filter(r=>r.g===gsel);
   const univs = uniq(rs.map(r=>r.u)).sort();
-  const by = groupBy(rs,'k'); if(S.sem!=='ALL'&&gsel==='교과') courseMeta(S.sem).forEach(c=>{if(!by.has(c.k)) by.set(c.k,[])}); // 개설했지만 수강생 0명인 과목도 표시
+  const by = groupBy(rs,'k'); if(S.sem!=='ALL'&&gsel==='교과') [...courseMeta(S.sem),...offeredIn(S.sem)].forEach(c=>{if(!by.has(c.k)) by.set(c.k,[])}); // 개설했지만 수강생 0명인 과목도 표시
   const courses=[...by.keys()].sort(byCourse);
   const mode = S.sm||'n';
   const cell = (list)=> mode==='n'?list.length: mode==='d'?list.filter(r=>r.c==='수료').length : (list.filter(r=>r.c!=='수강중').length? pct(list.filter(r=>r.c==='수료').length,list.filter(r=>r.c!=='수강중').length)+'%':'–');
-  const cols=[{t:'No',k:'i',n:1,f:r=>r._sub?'':r.i},{t:'구분',k:'cat',f:r=>r._sub?'':esc(r.cat)},{t:'교과목명',k:'k',f:r=>r._sub?`<b>${esc(r.k)}</b>`:esc(r.k)},{t:'합계',k:'tot',n:1,f:r=>r._sub?`<b>${fmt(r.tot)}</b>`:fmt(r.tot)},...univs.map(u=>({t:u.replace(/대학교|대학/,''),k:u,n:1,f:r=>r[u]===0?'<span class="heat0">0</span>':fmt(r[u])}))];
+  const cols=[{t:'No',k:'i',n:1,f:r=>r._sub?'':r.i},{t:'구분',k:'cat',f:r=>r._sub?'':esc(r.cat)},{t:'교과목명',k:'k',f:r=>r._sub?`<b>${esc(r.k)}</b>`:esc(r.k)+(offerNote(r.k)?` <span class="pill p-ing">${offerNote(r.k)}</span>`:'')},{t:'합계',k:'tot',n:1,f:r=>r._sub?`<b>${fmt(r.tot)}</b>`:fmt(r.tot)},...univs.map(u=>({t:u.replace(/대학교|대학/,''),k:u,n:1,f:r=>r[u]===0?'<span class="heat0">0</span>':fmt(r[u])}))];
   const data=[]; let no=0;
   CATS.map(c=>c.cat).concat(['기타']).forEach(cat=>{
     const ks=courses.filter(k=>cinfo(k).cat===cat); if(!ks.length) return;
@@ -556,7 +560,7 @@ VIEWS.leads = () => {
   const meta = courseMeta(sem);
   const rs = DB.records.filter(r=>r.s===sem);
   const cnt = groupBy(rs,'k');
-  const names = uniq([...meta.map(m=>m.k), ...cnt.keys()]).sort(byCourse);
+  const names = uniq([...meta.map(m=>m.k), ...cnt.keys(), ...offeredIn(sem).map(o=>o.k)]).sort(byCourse);
   const data = names.map((k,i)=>{const m=meta.find(x=>x.k===k)||{};const v=cnt.get(k)||[];const bi=banInfo(sem,k,m);return {i:i+1,k,lead:m.lead||'',n:v.length,bn:bi.n,d:v.filter(r=>r.c==='수료').length,ban:bi.ban,auto:bi.auto,manual:bi.manual,fee:bi.fee,dev:m.dev||0,rep:m.rep||0,weeks:(m.weeks||[]).length}});
   const sum=(f)=>data.reduce((s,x)=>s+(+x[f]||0),0);
   return `<div class="toolbar"><span class="meta">${semLabel(sem)} 과정책임자·운영비 · 인원은 수강 자료에서 자동 집계</span>
@@ -564,7 +568,7 @@ VIEWS.leads = () => {
     ${meta.length?'':`<button class="btn" onclick="copyMeta('${sem}')">이전 학기 정보 복사</button>`}`}</div>
     <div class="hint">강의료 = 분반 수 × 210,000원. 분반은 교과 수강 인원 100명 기준이며, 100명을 넘는 나머지가 10명 이하이면 앞 분반에 포함합니다 (예: 110명→1분반, 111명→2분반, 203명→2분반). ${isPub()?'':'기본자료 입력에서 분반을 직접 적으면 「조정」으로 표시되고 그 값으로 계산합니다.'}</div>
     ${meta.length?'':`<div class="hint">${semLabel(sem)}의 과정책임자 정보가 아직 없습니다.${isPub()?'':' 「이전 학기 정보 복사」 또는 「기본자료 입력」에서 등록하세요.'}</div>`}
-    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반 기준 인원',k:'bn',n:1},{t:'분반',k:'ban',n:1,f:r=>r.manual?`<b>${r.ban}</b> <span class="pill p-ing" title="자동 계산 ${r.auto}분반">조정</span>`:fmt(r.ban)},{t:'강의료',k:'fee',n:1},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
+    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k',f:r=>esc(r.k)+(offerNote(r.k)?` <span class="pill p-ing">${offerNote(r.k)}</span>`:'')},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원(교과+비교과)',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반 기준 인원(교과)',k:'bn',n:1},{t:'분반',k:'ban',n:1,f:r=>r.manual?`<b>${r.ban}</b> <span class="pill p-ing" title="자동 계산 ${r.auto}분반">조정</span>`:fmt(r.ban)},{t:'강의료',k:'fee',n:1},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
       {foot:['','','합계','',fmt(sum('n')),fmt(sum('d')),fmt(sum('bn')),fmt(sum('ban')),fmt(sum('fee')),fmt(sum('dev')),fmt(sum('rep')),'']})}`;
 };
 function copyMeta(sem){
@@ -688,7 +692,7 @@ VIEWS.input = () => {
   const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
   const m = DB.meta[sem]||{}; const info = m.info||{};
   const meta = courseMeta(sem);
-  const names = uniq([...meta.map(x=>x.k), ...uniq(DB.records.filter(r=>r.s===sem).map(r=>r.k))]).sort(byCourse);
+  const names = uniq([...meta.map(x=>x.k), ...uniq(DB.records.filter(r=>r.s===sem).map(r=>r.k)), ...offeredIn(sem).map(o=>o.k)]).sort(byCourse);
   return `<div class="card"><h2>${semLabel(sem)} 기본자료</h2>
     <div class="hint">여기 입력한 문장과 아래 교과목 정보가 개발보고서·완료보고서에 그대로 들어갑니다. 숫자(수강·수료·대학별 표)는 수강 자료에서 자동 계산됩니다. 입력값은 이 브라우저에만 저장됩니다. <b>게시 주소에 반영하려면 「입력 내용 내보내기」 파일을 Claude에게 주거나 자료 저장소의 data/meta.json으로 올리세요.</b></div>
     <div class="form">${INPUT_FIELDS.map(([k,l,ph])=>`<label>${l}</label>${['goal','devSummary','devQuality','outcome','issue','plan'].includes(k)?`<textarea data-k="${k}" placeholder="${esc(ph)}">${esc(info[k]||'')}</textarea>`:`<input type="text" data-k="${k}" value="${esc(info[k]||'')}" placeholder="${esc(ph)}">`}`).join('')}</div>
