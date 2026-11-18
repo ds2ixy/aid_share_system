@@ -3,18 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>공유학점 운영 현황</title>
+<title>전문대학 AID컨소시엄 · 공유학점 운영현황</title>
 <meta name="description" content="공유학점 운영현황">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="전문대학 AID 컨소시엄">
 <meta property="og:title" content="전문대학 AID컨소시엄">
 <meta property="og:description" content="공유학점 운영현황">
 <meta property="og:url" content="https://ds2ixy.github.io/aid_share_system/">
-<meta property="og:image" content="https://ds2ixy.github.io/aid_share_system/og-image.jpg">
+<meta property="og:image" content="https://ds2ixy.github.io/aid_share_system/og-image.jpg?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://ds2ixy.github.io/aid_share_system/og-image.jpg">
+<meta name="twitter:title" content="전문대학 AID컨소시엄">
+<meta name="twitter:description" content="공유학점 운영현황">
+<meta name="twitter:image" content="https://ds2ixy.github.io/aid_share_system/og-image.jpg?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -223,6 +225,7 @@ main{padding-right:96px!important}
 </nav>
 <script>
 const RAW = /*__DATA__*/null;
+/*__PARSER__*/
 
 /* ========== 1. 설정: 메뉴 · 학기 · 마이크로디그리 (여기만 고치면 확장) ========== */
 const SEMS = ['2025-1','2025-2','2026-1','2026-2'];
@@ -540,6 +543,9 @@ function surveyEditor(sem){
   const inp=(k,f,v,w)=>`<input type="number" step="0.01" data-sv="${esc(k)}" data-f="${f}" value="${v==null?'':v}" style="width:${w||70}px">`;
   return `<div class="card" style="margin-top:14px"><h2>${semLabel(sem)} 설문 결과 (디지털 역량 · 수업만족도)</h2>
     <div class="hint">완료보고서의 「디지털 역량」「수업만족도」 표와 해설이 이 값으로 자동 생성됩니다. 25-2·26-1학기는 샘플 보고서에서 읽어 미리 채워 두었습니다. 대학별 보고서는 대학을 골라 같은 방식으로 입력합니다.</div>
+    <div class="drop" style="padding:16px;margin:8px 0 12px"><b>📄 샘플 보고서 파일로 채우기</b><br>
+      <span class="meta">종합보고서·대학별 보고서 PDF를 여러 개 한꺼번에 고르면 대학을 알아서 구분해 디지털 역량·만족도 수치를 채웁니다. (글자가 그림으로 된 스캔 PDF는 읽을 수 없습니다)</span><br>
+      <input type="file" multiple accept=".pdf,.txt" style="margin-top:8px" onchange="importReports(this.files,'${sem}')"> <span id="rpMsg" class="meta"></span><div id="rpOut"></div></div>
     <div class="toolbar">범위 <select onchange="S.svs=this.value;render()"><option ${sc==='전체'?'selected':''}>전체</option>${univs.map(u=>`<option ${sc===u?'selected':''}>${esc(u)}</option>`).join('')}</select>
       응답자 수(N) <input type="number" id="svN" value="${X.N||''}" style="width:90px"></div>
     <div class="tw" style="max-height:none"><table><thead><tr><th>항목</th><th class="n">사전 M</th><th class="n">사전 SD</th><th class="n">사후 M</th><th class="n">사후 SD</th><th class="n">t</th></tr></thead><tbody>
@@ -551,6 +557,46 @@ function surveyEditor(sem){
     </tbody></table></div>
     <div class="toolbar" style="margin-top:12px"><button class="btn pri" onclick="saveSurvey('${sem}','${esc(sc)}')">설문 결과 저장</button><span class="meta">저장 후 「입력 내용 내보내기」 파일에 함께 들어갑니다.</span></div></div>`;
 }
+/* --- 보고서 PDF → 설문 결과 --- */
+let _pdfjs=null;
+async function loadPdfjs(){
+  if(_pdfjs) return _pdfjs;
+  const base='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  await new Promise((ok,no)=>{const s=document.createElement('script');s.src=base+'pdf.min.js';s.onload=ok;s.onerror=()=>no(new Error('PDF 읽기 도구를 불러오지 못했습니다'));document.head.appendChild(s)});
+  const lib=window.pdfjsLib; try{const w=await (await fetch(base+'pdf.worker.min.js')).text();lib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([w],{type:'text/javascript'}))}catch(e){lib.GlobalWorkerOptions.workerSrc=base+'pdf.worker.min.js'}
+  return (_pdfjs=lib);
+}
+async function fileText(f){
+  if(/\.txt$/i.test(f.name)) return await f.text();
+  const lib=await loadPdfjs(); const doc=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; let s='';
+  for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i); s+=RP.linesFromItems((await pg.getTextContent()).items)+'\n';}
+  return s;
+}
+const UNIV_ALIAS={'경남도립남해대학':['남해']};
+function guessUniv(fname,text,univs){
+  const hay=(fname+' '+text.slice(0,800)).replace(/\s+/g,'');
+  return univs.find(u=>hay.includes(u.replace(/\s+/g,''))) || univs.find(u=>hay.includes(u.replace(/대학교$|대학$/,'').replace(/\s+/g,''))) || univs.find(u=>(UNIV_ALIAS[u]||[]).some(a=>hay.includes(a)));
+}
+async function importReports(files, sem){
+  const msg=document.getElementById('rpMsg'), out=document.getElementById('rpOut'); const rows=[];
+  const univs=uniq([...DB.records.filter(r=>r.s===sem).map(r=>r.u), ...Object.keys((survey(sem)||{}).univ||{})]).sort();
+  const cur=JSON.parse(JSON.stringify(survey(sem)||{})); cur.univ=cur.univ||{}; cur.all=cur.all||{items:{},sat:{}}; cur.all.items=cur.all.items||{}; cur.all.sat=cur.all.sat||{};
+  const fillAll=a=>{if(!a) return; Object.entries(a.items||{}).forEach(([k,v])=>{if(!cur.all.items[k]) cur.all.items[k]=v}); Object.entries(a.sat||{}).forEach(([k,v])=>{if(!cur.all.sat[k]) cur.all.sat[k]=v});};
+  for(const f of files){
+    msg.textContent=`읽는 중: ${f.name}`;
+    try{
+      const text=await fileText(f);
+      if(text.replace(/\s/g,'').length<200){rows.push({f:f.name,who:'–',n:0,s:0,N:'',ok:'글자를 읽을 수 없음 (스캔 PDF)'});continue;}
+      if(RP.isTotal(f.name,text)){const r=RP.parseTotal(text); cur.all={...cur.all,N:r.N||cur.all.N,items:{...cur.all.items,...r.items},sat:{...cur.all.sat,...r.sat}}; rows.push({f:f.name,who:'전체(종합)',n:Object.keys(r.items).length,s:Object.keys(r.sat).length,N:r.N,ok:'반영'});}
+      else{const u=guessUniv(f.name,text,univs); const r=RP.parseUniv(text);
+        if(!u){rows.push({f:f.name,who:'대학을 찾지 못함',n:Object.keys(r.univ.items).length,s:Object.keys(r.univ.sat).length,N:r.univ.N,ok:'건너뜀'});continue;}
+        cur.univ[u]={N:r.univ.N,items:r.univ.items,sat:r.univ.sat}; fillAll(r.all); rows.push({f:f.name,who:u,n:Object.keys(r.univ.items).length,s:Object.keys(r.univ.sat).length,N:r.univ.N,ok:'반영'});}
+    }catch(e){rows.push({f:f.name,who:'–',n:0,s:0,N:'',ok:'오류: '+(e.message||e)});}
+  }
+  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),survey:cur};
+  if(LS.set('meta',m)){loadDB(); render(); setTimeout(()=>{const o=document.getElementById('rpOut');if(o)o.innerHTML=table([{t:'파일',k:'f'},{t:'반영 대상',k:'who'},{t:'역량 항목(22)',k:'n',n:1},{t:'만족도(5)',k:'s',n:1},{t:'N',k:'N',n:1},{t:'결과',k:'ok'}],rows);const g=document.getElementById('rpMsg');if(g)g.textContent=`${rows.filter(r=>r.ok==='반영').length}/${rows.length}개 반영 · 보고서에 바로 적용됨`;},50);}
+}
+function importMeta(f){const fr=new FileReader();fr.onload=e=>{try{const o=JSON.parse(e.target.result);const src=o.meta||o;const m=LS.get('meta',{});Object.entries(src).forEach(([s,v])=>m[s]={...(m[s]||{}),...v});LS.set('meta',m);loadDB();render();toast('입력 내용을 불러왔습니다')}catch(err){toast('meta.json 형식이 아닙니다')}};fr.readAsText(f)}
 function saveSurvey(sem, sc){
   const num=v=>v===''||v==null?null:+v;
   const items={}; document.querySelectorAll('[data-sv]').forEach(e=>{const k=e.dataset.sv;(items[k]=items[k]||{})[e.dataset.f]=num(e.value)});
@@ -579,6 +625,7 @@ VIEWS.input = () => {
     </tbody></table></div>
     <div class="toolbar" style="margin-top:12px"><button class="btn pri" onclick="saveInput('${sem}')">저장</button>
       <button class="btn" onclick="download('meta.json',JSON.stringify({meta:LS.get('meta',{})},null,1),'application/json')">입력 내용 내보내기 (meta.json)</button>
+      <label class="btn">입력 내용 불러오기 (meta.json)<input type="file" accept=".json" hidden onchange="importMeta(this.files[0])"></label>
       <button class="btn" onclick="go('devrep')">개발보고서 보기</button><button class="btn" onclick="go('comprep')">완료보고서 보기</button></div></div>`+surveyEditor(sem);
 };
 function saveInput(sem){

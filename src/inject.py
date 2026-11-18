@@ -28,6 +28,7 @@ raw=dict(univs=univs,courses=courses,status=status,rows=rows,cancels=cancels,met
 t=open(sys.argv[2]).read()
 if public:  # 게시용 HTML에는 마스킹 버튼 자체를 넣지 않음
     t=re.sub(r'\n\s*<button class="btn" id="privBtn"[^\n]*</button>','',t)
+t=t.replace('/*__PARSER__*/',open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'report_parser.js')).read())
 t=t.replace('/*__DATA__*/null',json.dumps(raw,ensure_ascii=False,separators=(',',':')))
 open(sys.argv[3],'w').write(t)
 print('public(masked)' if public else 'internal(real names)', len(rows))
