@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>공유학점 운영 현황</title>
+<meta name="description" content="공유학점 운영현황">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="전문대학 AID 컨소시엄">
+<meta property="og:title" content="전문대학 AID컨소시엄">
+<meta property="og:description" content="공유학점 운영현황">
+<meta property="og:url" content="https://ds2ixy.github.io/aid_share_system/">
+<meta property="og:image" content="https://ds2ixy.github.io/aid_share_system/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ds2ixy.github.io/aid_share_system/og-image.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#eef4fb; --panel:#ffffff; --panel2:#f3f7fc; --line:#d9e3f0; --ink:#0f1d33; --ink2:#4a5a74; --ink3:#8594ab;
+  --brand:#1565c0; --brand2:#4a2c82; --brandSoft:#e3eefb; --accent:#4fd1f5; --warn:#b83a5e; --ok:#1565c0;
+  --side1:#0b2a5b; --side2:#3a2577; --cover1:#0b2a5b; --cover2:#3f2a85;
+  --bar:#1565c0; --bar2:#c3d8f2; --cyan:#1fa8e0; --purple:#4a2c82; --navy:#0b2a5b;
+  --glow:rgba(41,182,246,.22); --shadow:0 8px 28px -14px rgba(21,101,192,.35);
+}
+:root[data-theme="dark"]{
+  --bg:#0a1222; --panel:#111c33; --panel2:#16233f; --line:#243557; --ink:#e8eefa; --ink2:#a9b7d0; --ink3:#6f7f9c;
+  --brand:#5aa7ff; --brand2:#a68bf0; --brandSoft:#17305a; --accent:#4fd1f5; --warn:#f0809f; --ok:#5aa7ff;
+  --side1:#081d42; --side2:#26185a; --cover1:#081d42; --cover2:#2c1c66;
+  --bar:#5aa7ff; --bar2:#25406e; --cyan:#4fd1f5; --purple:#a68bf0; --navy:#0b2a5b;
+  --glow:rgba(79,209,245,.10); --shadow:0 8px 28px -14px rgba(0,0,0,.6);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0a1222; --panel:#111c33; --panel2:#16233f; --line:#243557; --ink:#e8eefa; --ink2:#a9b7d0; --ink3:#6f7f9c;
+  --brand:#5aa7ff; --brand2:#a68bf0; --brandSoft:#17305a; --accent:#4fd1f5; --warn:#f0809f; --ok:#5aa7ff;
+  --side1:#081d42; --side2:#26185a; --cover1:#081d42; --cover2:#2c1c66;
+  --bar:#5aa7ff; --bar2:#25406e; --cyan:#4fd1f5; --purple:#a68bf0; --navy:#0b2a5b;
+  --glow:rgba(79,209,245,.10); --shadow:0 8px 28px -14px rgba(0,0,0,.6);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1100px 420px at 62% -8%,var(--glow),transparent 70%) fixed,var(--bg);color:var(--ink);font:14px/1.55 "Noto Sans KR",system-ui,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;gap:0}
+/* sidebar */
+.side{background:linear-gradient(170deg,var(--side1),var(--side2));color:#e8f3f2;margin:10px;border-radius:22px;padding:18px 14px;position:sticky;top:10px;height:calc(100vh - 20px);overflow:auto}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.logo .mk{flex:none;letter-spacing:-.02em;width:38px;height:38px;border-radius:50%;background:#fff;color:var(--navy);box-shadow:0 0 0 3px rgba(79,209,245,.45),0 0 18px rgba(79,209,245,.55);display:grid;place-items:center;font-weight:800;font-size:13px}
+.logo b{display:block;font-size:14.5px;line-height:1.3}.logo small{opacity:.75;font-size:12px}
+.grp{font-size:11.5px;font-weight:700;opacity:.7;margin:16px 6px 6px;letter-spacing:.04em}
+.nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;color:inherit;padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13.5px;margin-left:8px;border-left:1px dashed rgba(255,255,255,.25);border-radius:0 10px 10px 0}
+.nav:hover{background:rgba(255,255,255,.08)}
+.nav.on{background:rgba(255,255,255,.16);font-weight:700;box-shadow:inset 3px 0 0 #4fd1f5}
+.nav .ic{width:18px;text-align:center;opacity:.85}
+.nav .tag{margin-left:auto;white-space:nowrap;font-size:10px;background:rgba(255,255,255,.2);padding:1px 6px;border-radius:8px}
+/* main */
+main{padding:18px 22px 40px;min-width:0}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.top h1{font-family:"Noto Serif KR",serif;font-size:26px;margin:0;font-weight:800;letter-spacing:-.01em}
+.top .sp{flex:1}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--ink2)}
+.seg button.on{background:var(--brand);color:#fff;font-weight:700}
+.ver{font-size:12px;color:var(--ink3)}
+@media (max-width:1560px){.ver{display:none}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px 20px;box-shadow:var(--shadow)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--cyan);outline-offset:1px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+select,input[type=text],input[type=search],input[type=number],textarea{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+textarea{width:100%;min-height:70px;resize:vertical}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--brand)}
+.btn.pri{background:var(--brand);color:#fff;border-color:var(--brand)}
+.kpis{display:flex;flex-wrap:wrap;gap:0;margin:4px 0 6px}
+.kpi{padding:2px 22px 2px 0;margin-right:22px;border-right:1px solid var(--line)}
+.kpi:last-child{border:0}
+.kpi b{display:block;font-family:"Noto Serif KR",serif;font-size:26px;font-weight:600;line-height:1.2}
+.kpi span{font-size:12px;color:var(--ink2)}
+.meta{font-size:12.5px;color:var(--ink3);margin-top:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+h2{font-size:16px;margin:0 0 12px}
+h3{font-size:14px;margin:14px 0 8px}
+.hint{font-size:12.5px;color:var(--ink2);background:var(--panel2);border:1px dashed var(--line);border-radius:10px;padding:8px 12px;margin:8px 0}
+/* bars */
+.bars{display:flex;flex-direction:column;gap:6px}
+.br{display:grid;grid-template-columns:170px 1fr 74px;gap:8px;align-items:center;font-size:12.5px}
+.br .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+.br .tr{height:14px;background:var(--panel2);border-radius:4px;position:relative;overflow:hidden}
+.br .f1{position:absolute;inset:0 auto 0 0;background:var(--bar2);border-radius:4px}
+.br .f2{position:absolute;inset:0 auto 0 0;background:var(--bar);border-radius:4px}
+.br .v{text-align:right;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink2);margin-bottom:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.trend{display:flex;gap:18px;align-items:flex-end;height:170px;padding:10px 4px 0;border-bottom:1px solid var(--line)}
+.tcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+.tcol .st{width:60%;max-width:70px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
+.tcol small{font-size:11.5px;color:var(--ink2)}
+.tlab{display:flex;gap:18px;padding:4px}.tlab div{flex:1;text-align:center;font-size:12px;color:var(--ink2)}
+/* tables */
+.tw{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:68vh}
+table{border-collapse:collapse;width:100%;font-size:12.8px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel2);font-weight:700;z-index:1;cursor:default}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:var(--panel2)}
+tfoot td{font-weight:700;background:var(--panel2);position:sticky;bottom:0}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;font-weight:700}
+.p-ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.p-no{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+.p-ing{background:color-mix(in srgb,var(--purple) 15%,transparent);color:var(--purple)}
+.heat0{color:var(--ink3)}
+.pager{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:8px;font-size:12.5px;color:var(--ink2)}
+/* microdegree */
+.md{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
+.md .hd{background:linear-gradient(90deg,var(--navy),var(--mc));color:#fff;text-align:center;font-weight:700;padding:9px;font-size:15px}
+.md .chain{display:flex;align-items:center;justify-content:center;padding:16px 10px;gap:0;flex-wrap:wrap}
+.md .cc{background:var(--mc);color:#fff;font-size:12px;font-weight:700;padding:10px 8px;min-width:96px;text-align:center;border-radius:4px}
+.md .cc small{display:block;font-weight:400;opacity:.9;font-size:11px}
+.md .lk{width:34px;height:2px;background:var(--mc);position:relative}
+.md .lk:after{content:"";position:absolute;left:50%;top:50%;width:10px;height:10px;border:2px solid var(--mc);background:var(--panel);border-radius:50%;transform:translate(-50%,-50%)}
+.md .ft{display:flex;justify-content:space-between;align-items:center;padding:0 14px 12px;font-size:13px}
+.md .chips{display:flex;flex-wrap:wrap;gap:6px;padding:14px 14px 10px}
+.md .chip{background:color-mix(in srgb,var(--mc) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--mc) 35%,transparent);color:var(--ink);font-size:12px;padding:4px 9px;border-radius:8px}
+.md .chip i{font-style:normal;font-size:10.5px;font-weight:700;color:#fff;background:var(--mc);border-radius:5px;padding:0 5px;margin-right:5px}
+:root[data-theme=dark] .md .chip i{filter:brightness(1.35)}
+.md .ft b{font-family:"Noto Serif KR",serif;font-size:22px;color:var(--mcText,var(--mc))}
+/* report */
+.rep{display:grid;grid-template-columns:210px 1fr;gap:16px}
+.toc{position:sticky;top:10px;align-self:start;box-shadow:var(--shadow);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.toc a{display:block;padding:5px 8px;border-radius:7px;color:var(--ink2);text-decoration:none;font-size:13px}
+.toc a:hover{background:var(--brandSoft);color:var(--brand)}
+.toc a small{font-family:monospace;color:var(--ink3);margin-right:6px}
+.paper{max-width:860px}
+.cover{background:radial-gradient(circle at 86% 14%,rgba(79,209,245,.38),transparent 34%),radial-gradient(circle at 6% 112%,rgba(166,139,240,.30),transparent 38%),linear-gradient(135deg,var(--cover1),var(--cover2));box-shadow:var(--shadow);color:#fff;border-radius:16px;padding:40px 48px}
+.cover .eb{color:#7fdcff;font-size:12.5px;font-weight:700;letter-spacing:.08em}
+.cover .rule{width:56px;height:3px;background:var(--accent);margin:12px 0 22px}
+.cover h1{font-family:"Noto Serif KR",serif;font-size:36px;margin:0 0 6px;line-height:1.25}
+.cover .sub{font-size:19px;opacity:.9;margin-bottom:16px}
+.cover p{opacity:.85;font-size:13.5px;margin:0}
+.cover .ck{display:flex;gap:40px;border-top:1px solid rgba(255,255,255,.2);margin-top:26px;padding-top:20px;flex-wrap:wrap}
+.cover .ck b{display:block;font-family:"Noto Serif KR",serif;font-size:32px;font-weight:600}
+.cover .ck span{font-size:12px;opacity:.8}
+.rbar{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
+.sec{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--brand);box-shadow:var(--shadow);border-radius:12px;padding:20px 24px;margin-bottom:14px}
+.sec h2{font-family:"Noto Serif KR",serif;font-size:19px;color:var(--purple);margin-bottom:12px}
+.sec h2 small{font-family:monospace;color:var(--ink3);font-size:13px;margin-right:8px}
+.sec p{margin:6px 0}
+.sec table{margin:8px 0}
+.empty{color:var(--ink3);font-style:italic}
+.form{display:grid;grid-template-columns:150px 1fr;gap:10px 14px;align-items:start}
+.form label{font-size:13px;color:var(--ink2);padding-top:6px;font-weight:500}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:28px;text-align:center;color:var(--ink2)}
+.modal{position:fixed;inset:0;background:rgba(6,14,30,.55);display:grid;place-items:center;z-index:10}
+.modal[hidden]{display:none}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:10px;opacity:0;transition:.3s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.mtoggle{display:none}
+/* 오른쪽 QUICK 바 */
+.quick{position:fixed;right:14px;top:50%;transform:translateY(-50%);width:68px;background:color-mix(in srgb,var(--panel) 82%,transparent);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:18px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:var(--shadow);z-index:4}
+.quick .ql{font-size:9.5px;letter-spacing:.14em;color:var(--ink3);margin:4px 0}
+.quick button{width:56px;border:0;background:none;border-radius:10px;padding:6px 2px;font-size:11px;color:var(--ink2);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+.quick button span{font-size:15px;line-height:1}
+.quick button:hover{background:var(--brandSoft);color:var(--brand)}
+.quick button.on{background:var(--brandSoft);color:var(--brand);font-weight:700}
+.quick hr{width:44px;border:0;border-top:1px solid var(--line);margin:4px 0}
+main{padding-right:96px!important}
+#themeSeg{display:none}
+@media (max-width:900px){
+  .quick{display:none} #themeSeg{display:inline-flex} main{padding-right:16px!important}
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;inset:0 auto 0 0;width:250px;height:100vh;margin:0;border-radius:0;z-index:5;transform:translateX(-100%);transition:.25s}
+  .side.open{transform:none}
+  .mtoggle{display:inline-block}
+  main{padding:14px 16px}
+  .grid2,.grid4,.rep{grid-template-columns:1fr}
+  .toc{position:static}
+  .br{grid-template-columns:110px 1fr 60px}
+  .cover{padding:26px 22px}.cover h1{font-size:26px}
+  .form{grid-template-columns:1fr}
+}
+@media print{
+  body{background:#fff}
+  .side,.top,.toolbar,.rbar,.toc,.quick,.noprint{display:none!important}
+  .app,.rep{display:block}
+  main{padding:0}
+  .sec{break-inside:avoid;border-color:#ccc}
+  .tw{max-height:none;overflow:visible}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <main>
+    <div class="top">
+      <button class="btn mtoggle" onclick="document.getElementById('side').classList.toggle('open')">☰</button>
+      <h1 id="title">현황판</h1>
+      <div class="sp"></div>
+      <div class="seg" id="semSeg"></div>
+      <select id="univSel"></select>
+      <button class="btn" id="privBtn" onclick="togglePrivacy()">🙈 마스킹 켜기</button>
+      <div class="seg" id="themeSeg"><button data-t="light">◐ 밝게</button><button data-t="dark">☾ 어둡게</button></div>
+      <span class="ver" id="ver"></span>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<nav class="quick" aria-label="빠른 메뉴">
+  <div class="ql">QUICK</div>
+  <button onclick="go('home')"><span>⌂</span>현황판</button>
+  <button onclick="go('students')"><span>☰</span>수강생</button>
+  <button onclick="go('comprep')"><span>▣</span>보고서</button>
+  <hr><div class="ql">화면</div>
+  <button data-qt="light" onclick="setTheme('light')"><span>☼</span>밝게</button>
+  <button data-qt="dark" onclick="setTheme('dark')"><span>☾</span>어둡게</button>
+  <hr>
+  <button onclick="window.scrollTo({top:0,behavior:'smooth'})"><span>↑</span>위</button>
+  <button onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})"><span>↓</span>아래</button>
+</nav>
+<script>
+const RAW = /*__DATA__*/null;
+
+/* ========== 1. 설정: 메뉴 · 학기 · 마이크로디그리 (여기만 고치면 확장) ========== */
+const SEMS = ['2025-1','2025-2','2026-1','2026-2'];
+const semLabel = s => s==='ALL' ? '전체' : `${s.slice(2,4)}년 ${s.slice(5)}학기`;
+/* 교과목 구분·순서 (이 순서대로 모든 표에 정렬) */
+const CATS = [
+  {cat:'일반교양', list:['매력적인 나를 표현하는 퍼스널 뷰티전략','호감가는 구강관리개론','지속 가능한 세상을 위한 첫걸음! ESG !','와인의 맛과 향, 그리고 문화 이야기','감각을 깨우는 뷰티테라피 & 테크','다이어트와 식생활','재미있게 배우는 금융과 경제의 기초']},
+  {cat:'AI 기초과정', list:['AI 윤리와 책임','인공지능(AI) 기반의 진로개발 포트폴리오 제작 클래스','AI Lifestyle My GPTer','AI를 활용한 미디어 제작과 혁신적 학습 전략','AI기반 문서작성 마스터(1)','생성형 AI 글쓰기(1)','AI 일정관리 최적화(1)','AI 문서교정 실무(1)','AI 정보검색 및 요약(1)','AI 데이터 관리(1)','AI 회의 관리(1)','AI 클라우드 활용법(1)','AI 협업도구 활용(1)','AI 이메일 커뮤니케이션(1)']},
+  {cat:'AI 심화과정', list:['AI기반 문서작성 마스터(2)','생성형 AI 글쓰기(2)','AI 일정관리 최적화(2)','AI 문서교정 실무(2)','AI 정보검색 및 요약(2)']},
+];
+const ALIAS = {'AI와 메타버스 시대, 윤리적 실천':'AI 윤리와 책임'}; // 25년 과목명 → 현재 과목 자리
+const ckey = k => String(ALIAS[k]||k||'').replace(/\s+/g,'').toLowerCase();
+const CORDER = new Map(); CATS.forEach(c=>c.list.forEach(k=>CORDER.set(ckey(k),{cat:c.cat,i:CORDER.size})));
+const cinfo = k => CORDER.get(ckey(k)) || {cat:'기타',i:999};
+const byCourse = (a,b) => cinfo(a).i-cinfo(b).i || String(a).localeCompare(String(b));
+/* 마이크로디그리: 해당 교과목 중 몇 개를 들었는지로 구분 (3개 이상 / 2개) */
+const MICRO = [
+  {id:'doc',  c:'#1565c0', name:'AI 문서 자동화 전문가',     courses:['AI기반 문서작성 마스터(1)','생성형 AI 글쓰기(1)','AI 문서교정 실무(1)','AI기반 문서작성 마스터(2)','생성형 AI 글쓰기(2)','AI 문서교정 실무(2)']},
+  {id:'com',  c:'#5b3a9a', name:'AI 커뮤니케이션 전문가',     courses:['AI 일정관리 최적화(1)','AI 이메일 커뮤니케이션(1)','AI 회의 관리(1)','AI 일정관리 최적화(2)']},
+  {id:'data', c:'#1590c4', name:'AI 정보·데이터 활용 전문가', courses:['AI 정보검색 및 요약(1)','AI 데이터 관리(1)','AI 클라우드 활용법(1)','AI 정보검색 및 요약(2)']},
+  {id:'smart',c:'#0b2a5b', name:'AI 스마트 워킹 전문가',      courses:['AI 정보검색 및 요약(1)','AI 클라우드 활용법(1)','AI 협업도구 활용(1)','AI 정보검색 및 요약(2)']},
+];
+// 메뉴 레지스트리: 화면 하나 추가 = 객체 하나 추가 + VIEWS 함수 하나
+const MENU_ALL = [
+  {grp:'현황', items:[{id:'home',ic:'▦',t:'현황판'}]},
+  {grp:'학기 자료', items:[
+    {id:'summary',ic:'▤',t:'요약표'},
+    {id:'students',ic:'☰',t:'전체 수강생 현황'},
+    {id:'enroll',ic:'✎',t:'수강신청 현황'},
+    {id:'leads',ic:'⚑',t:'과정책임자'},
+    {id:'badge',ic:'◎',t:'디지털배지 발급명단'},
+  ]},
+  {grp:'보고서 엔진', items:[
+    {id:'input',ic:'⌨',t:'기본자료 입력'},
+    {id:'devrep',ic:'▣',t:'개발보고서',tag:'자동'},
+    {id:'comprep',ic:'▣',t:'통합 완료보고서',tag:'자동'},
+    {id:'univrep',ic:'▣',t:'대학별 완료보고서',tag:'자동'},
+  ]},
+  {grp:'자료 관리', items:[{id:'import',ic:'⇩',t:'자료 들여오기'},{id:'backup',ic:'⇅',t:'백업 · 내보내기'}]},
+];
+// 게시용(public) 빌드에서는 내부 관리 기능을 숨깁니다
+// 게시용(public): 보기 전용. 자료 관리·입력·내려받기·실명 보기는 내부용에만 있습니다
+const DATA_VIEWS = ['import','backup'], EDIT_VIEWS = ['input'];
+const isPub = () => !!RAW.public;   // 게시용 = 보기 전용
+const blocked = v => RAW.public && (DATA_VIEWS.includes(v) || EDIT_VIEWS.includes(v));
+const menu = () => MENU_ALL.map(g=>({...g,items:g.items.filter(i=>!blocked(i.id))})).filter(g=>g.items.length);
+
+/* ========== 2. 데이터 계층 ========== */
+const LS = {
+  get(k,d){try{const v=localStorage.getItem('scd:'+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem('scd:'+k,JSON.stringify(v));return true}catch(e){toast('브라우저 저장 실패: 백업 파일로 내보내 주세요');return false}},
+};
+const F = ['s','u','n','id','a','h','e','t','c','k','g','p'];
+function decode(raw){
+  return raw.rows.map(r=>{const o={};F.forEach((f,i)=>o[f]=r[i]);o.u=raw.univs[o.u];o.k=raw.courses[o.k];o.c=raw.status[o.c];o.g=o.g?'비교과':'교과';return o});
+}
+let BASE = decode(RAW);
+let DB = {records:[], cancels:RAW.cancels, meta:{}};
+/* --- 개인정보 마스킹 ---
+   게시용(public): 빌드할 때 이미 마스킹된 이름·아이디만 들어 있고 실명은 없습니다.
+   내부용: 실명이 들어 있고, 외부로 자료를 보낼 때 「마스킹 켜기」로 화면·내려받기를 모두 가립니다. */
+const REAL = {rows:BASE.map(r=>[r.n,r.id]), cancels:RAW.cancels.map(c=>[c.n,c.id])};
+const PRIV = {on:!RAW.public};   // on = 실명 표시
+const maskName = n => {n=String(n||'');return n.length<2?n:n.length===2?n[0]+'*':n[0]+'*'.repeat(n.length-2)+n.slice(-1)};
+const maskId = i => {i=String(i||'');let m=(i.match(/^[A-Za-z]*\d{0,4}/)||[''])[0];if(m.length>=i.length)m=i.slice(0,Math.max(1,i.length-4));return m+'*'.repeat(i.length-m.length)};
+function applyPrivacy(){
+  if(RAW.public) return;
+  const show=PRIV.on;
+  BASE.forEach((r,i)=>{const [n,id]=REAL.rows[i];r.n=show?n:maskName(n);r.id=show?id:maskId(id)});
+  RAW.cancels.forEach((c,i)=>{const [n,id]=REAL.cancels[i];c.n=show?n:maskName(n);c.id=show?id:maskId(id)});
+}
+function privBtn(){const b=document.getElementById('privBtn');if(!b)return;if(RAW.public){b.remove();return}
+  b.innerHTML=PRIV.on?'🙈 마스킹 켜기':'👁 실명 보기 (마스킹 중)';b.classList.toggle('pri',!PRIV.on)}
+function togglePrivacy(){
+  if(RAW.public) return;
+  PRIV.on=!PRIV.on;applyPrivacy();loadDB();privBtn();render();
+  toast(PRIV.on?'실명으로 표시합니다':'마스킹했습니다 · 화면과 내려받기 모두 가려집니다');
+}
+function loadDB(){
+  const imported = RAW.public ? {} : LS.get('imported',{});        // {semester: records[]} 들여온 학기는 기본 자료를 대체
+  const recs = BASE.filter(r=>!imported[r.s]);
+  Object.values(imported).forEach(a=>recs.push(...a.map(r=>({...r,p:r.p||r.u+'|'+r.id,...(PRIV.on?{}:{n:maskName(r.n),id:maskId(r.id)})}))));
+  DB.records = recs;
+  DB.meta = Object.assign({}, RAW.meta, isPub() ? {} : LS.get('meta',{}));
+  const sems = new Set([...SEMS, ...Object.keys(imported)]);
+  DB.sems = [...sems].sort();
+}
+function normCourse(k){
+  k=String(k||'').trim().replace(/^\d+_/,'').replace(/_\(.*수정\)$/,'')
+   .replace('윤리적인 실천','윤리적 실천').replace('MY GPTer','My GPTer').replace('AI 기반 문서','AI기반 문서').replace('ESG!','ESG !');
+  return k.replace(/\s+/g,' ').trim();
+}
+const S = {view:'home', sem: LS.get('sem','2026-1'), univ:'ALL', page:0, q:'', fc:'ALL', fk:'ALL'};
+function rows(opt={}){
+  return DB.records.filter(r=>(opt.allSem||S.sem==='ALL'||r.s===S.sem)&&(opt.allUniv||S.univ==='ALL'||r.u===S.univ));
+}
+const uniq = (a)=>[...new Set(a)];
+const fmt = n => n==null||n===''?'–':(typeof n==='number'?n.toLocaleString('ko-KR'):n);
+const pct = (a,b)=> b? Math.round(a/b*1000)/10 : 0;
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function stat(rs){
+  const done = rs.filter(r=>r.c==='수료').length, fail=rs.filter(r=>r.c==='미수료').length, ing=rs.filter(r=>r.c==='수강중').length;
+  const graded = done+fail;
+  return {n:rs.length, people:uniq(rs.map(r=>r.p)).length, done, fail, ing, rate:pct(done,graded),
+    univ:uniq(rs.map(r=>r.u)).length, course:uniq(rs.map(r=>r.k)).length,
+    avg: graded? Math.round(rs.filter(r=>r.t!=null).reduce((s,r)=>s+r.t,0)/Math.max(1,rs.filter(r=>r.t!=null).length)*10)/10 : null};
+}
+function groupBy(rs,key){const m=new Map();rs.forEach(r=>{const k=typeof key==='function'?key(r):r[key];if(!m.has(k))m.set(k,[]);m.get(k).push(r)});return m}
+function statusPill(c){return `<span class="pill ${c==='수료'?'p-ok':c==='미수료'?'p-no':'p-ing'}">${esc(c)}</span>`}
+
+/* 마이크로디그리 해당자: 학기 누적, 같은 학생(대학+아이디), 서로 다른 해당 교과목 수
+   basis 'take' = 수료+수강중(미수료 제외), 'done' = 수료만 */
+function badges(uptoSem, basis='take'){
+  const ok = basis==='done' ? (c=>c==='수료') : (c=>c==='수료'||c==='수강중');
+  const rs = DB.records.filter(r=>ok(r.c) && (uptoSem==='ALL'||r.s<=uptoSem));
+  const by = groupBy(rs, r=>r.p);
+  const out = {}; MICRO.forEach(m=>out[m.id]=[]);
+  by.forEach(list=>{
+    MICRO.forEach(m=>{
+      const keys = new Set(m.courses.map(ckey));
+      const hit = new Map();
+      list.filter(r=>keys.has(ckey(r.k))).sort((a,b)=>a.c==='수료'?-1:1).forEach(r=>{if(!hit.has(ckey(r.k))) hit.set(ckey(r.k),r)});
+      const h=[...hit.values()].sort((a,b)=>byCourse(a.k,b.k));
+      if(h.length>=2){
+        out[m.id].push({u:h[0].u,n:h[0].n,id:h[0].id,cnt:h.length,tier:h.length>=3?'3개 이상':'2개',
+          done:h.filter(r=>r.c==='수료').length, ing:h.filter(r=>r.c==='수강중').length,
+          sem:h.map(r=>r.s).sort().pop(), courses:h.map(r=>`${r.k} (${semLabel(r.s)}·${r.c})`)});
+      }
+    });
+  });
+  MICRO.forEach(m=>out[m.id].sort((a,b)=>b.cnt-a.cnt||a.u.localeCompare(b.u)||String(a.n).localeCompare(String(b.n))));
+  return out;
+}
+const tierPill = t => `<span class="pill ${t==='3개 이상'?'p-ok':'p-ing'}">${t}</span>`;
+
+/* ========== 3. 공통 UI ========== */
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2200)}
+function bars(list,max,opt={}){ // list:[{label,a,b}]
+  return `<div class="bars">${list.map(x=>`<div class="br"><div class="lb" title="${esc(x.label)}">${esc(x.label)}</div>
+    <div class="tr"><div class="f1" style="width:${pct(x.a,max)}%"></div><div class="f2" style="width:${pct(x.b??0,max)}%"></div></div>
+    <div class="v">${fmt(x.a)}${x.b!=null&&opt.showB?` <small style="color:var(--ink3)">/${fmt(x.b)}</small>`:''}</div></div>`).join('')}</div>`;
+}
+function kpis(list){return `<div class="kpis">${list.map(([v,l])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('')}</div>`}
+function table(cols, data, opt={}){
+  return `<div class="tw"><table><thead><tr>${cols.map(c=>`<th class="${c.n?'n':''}">${esc(c.t)}</th>`).join('')}</tr></thead>
+  <tbody>${data.length?data.map(r=>`<tr>${cols.map(c=>`<td class="${c.n?'n':''}">${c.f?c.f(r):esc(fmt(r[c.k]))}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${cols.length}" class="empty">자료가 없습니다</td></tr>`}</tbody>
+  ${opt.foot?`<tfoot><tr>${opt.foot.map((v,i)=>`<td class="${cols[i]?.n?'n':''}">${v}</td>`).join('')}</tr></tfoot>`:''}</table></div>`;
+}
+let _dl=null; try{ if(window.claude&&window.claude.use) window.claude.use('downloads').then(d=>{_dl=d}).catch(()=>{}) }catch(e){}
+function download(name, text, type='text/plain'){
+  if(isPub()) return; // 게시용 보기 전용: 내려받기 없음
+  if(_dl){ _dl.save({filename:name,data:text}).then(r=>{if(r&&r.status==='saved')toast('저장했습니다')}).catch(e=>{const c=e&&e.code;if(c==='declined')return;toast(c==='rate_limited'?'잠시 후 다시 눌러 주세요':'이 화면에서는 저장할 수 없습니다')}); return }
+  const b=new Blob([text],{type:type+';charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function toCSV(cols,data){const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;return '﻿'+[cols.map(c=>q(c.t)).join(','),...data.map(r=>cols.map(c=>q(c.raw?c.raw(r):r[c.k])).join(','))].join('\n')}
+function scopeText(){return `${semLabel(S.sem)} · ${S.univ==='ALL'?'전체 대학':S.univ}`}
+
+/* ========== 4. 화면들 ========== */
+const VIEWS = {};
+
+VIEWS.home = () => {
+  const rs = rows(), st = stat(rs);
+  const isEnroll = st.ing>0 && st.done+st.fail===0;
+  const byU = [...groupBy(rs,'u')].map(([k,v])=>({label:k,a:v.length,b:v.filter(r=>r.c==='수료').length})).sort((a,b)=>b.a-a.a);
+  const byK = [...groupBy(rs,'k')].map(([k,v])=>({label:k,a:v.length,b:v.filter(r=>r.c==='수료').length})).sort((a,b)=>b.a-a.a);
+  const trend = DB.sems.map(s=>{const x=DB.records.filter(r=>r.s===s&&(S.univ==='ALL'||r.u===S.univ));return {s,n:x.length,d:x.filter(r=>r.c==='수료').length}});
+  const tmax = Math.max(...trend.map(t=>t.n),1);
+  const bd = badges(S.sem); const bdn = uniq(Object.values(bd).flat().filter(x=>x.cnt>=3).map(x=>x.u+'|'+x.id)).length;
+  return `<div class="card">
+    ${kpis([[fmt(st.n),'수강 건수'],[fmt(st.people),'실수강생(명)'],[isEnroll?'–':st.rate+'%','수료율'],[fmt(st.univ),'참여 대학'],[fmt(st.course),'교과목'],[fmt(bdn),'MD 3과목 이상(명)']])}
+    <div class="meta">${scopeText()} · ${isEnroll?'수강신청 단계(성적 미입력)':`수료 ${fmt(st.done)} · 미수료 ${fmt(st.fail)}${st.avg!=null?` · 평균 총점 ${st.avg}`:''}`}</div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card"><h2>학기별 추이</h2>
+      <div class="legend"><span><i style="background:var(--bar2)"></i>수강</span><span><i style="background:var(--bar)"></i>수료</span></div>
+      <div class="trend">${trend.map(t=>`<div class="tcol"><small>${fmt(t.n)}</small><div class="st" style="height:${pct(t.n,tmax)}%;background:var(--bar2)"><div style="height:${pct(t.d,t.n)}%;background:var(--bar)"></div></div></div>`).join('')}</div>
+      <div class="tlab">${trend.map(t=>`<div>${semLabel(t.s)}</div>`).join('')}</div>
+    </div>
+    <div class="card"><h2>대학별 수강 · 수료</h2>
+      <div class="legend"><span><i style="background:var(--bar2)"></i>수강</span><span><i style="background:var(--bar)"></i>수료</span></div>
+      ${bars(byU, byU[0]?.a||1)}</div>
+  </div>
+  <div class="card" style="margin-top:14px"><h2>교과목별 수강 · 수료</h2>${bars(byK, byK[0]?.a||1)}</div>`;
+};
+
+VIEWS.summary = () => {
+  const gsel = S.g||'교과';
+  const rs = rows({allUniv:true}).filter(r=>r.g===gsel);
+  const univs = uniq(rs.map(r=>r.u)).sort();
+  const by = groupBy(rs,'k'); const courses=[...by.keys()].sort(byCourse);
+  const mode = S.sm||'n';
+  const cell = (list)=> mode==='n'?list.length: mode==='d'?list.filter(r=>r.c==='수료').length : (list.filter(r=>r.c!=='수강중').length? pct(list.filter(r=>r.c==='수료').length,list.filter(r=>r.c!=='수강중').length)+'%':'–');
+  const cols=[{t:'No',k:'i',n:1,f:r=>r._sub?'':r.i},{t:'구분',k:'cat',f:r=>r._sub?'':esc(r.cat)},{t:'교과목명',k:'k',f:r=>r._sub?`<b>${esc(r.k)}</b>`:esc(r.k)},{t:'합계',k:'tot',n:1,f:r=>r._sub?`<b>${fmt(r.tot)}</b>`:fmt(r.tot)},...univs.map(u=>({t:u.replace(/대학교|대학/,''),k:u,n:1,f:r=>r[u]===0?'<span class="heat0">0</span>':fmt(r[u])}))];
+  const data=[]; let no=0;
+  CATS.map(c=>c.cat).concat(['기타']).forEach(cat=>{
+    const ks=courses.filter(k=>cinfo(k).cat===cat); if(!ks.length) return;
+    ks.forEach(k=>{const o={i:++no,cat,k,tot:cell(by.get(k))};univs.forEach(u=>o[u]=cell(by.get(k).filter(r=>r.u===u)));data.push(o)});
+    const sub=rs.filter(r=>cinfo(r.k).cat===cat); const o={i:'',cat:'',k:`${cat} 소계`,tot:cell(sub),_sub:1}; univs.forEach(u=>o[u]=cell(sub.filter(r=>r.u===u))); data.push(o);
+  });
+  const foot=['','','합계',cell(rs),...univs.map(u=>cell(rs.filter(r=>r.u===u)))];
+  return `<div class="toolbar">
+    <div class="seg">${['교과','비교과'].map(g=>`<button class="${gsel===g?'on':''}" onclick="S.g='${g}';render()">${g}</button>`).join('')}</div>
+    <div class="seg">${[['n','수강 인원'],['d','수료 인원'],['r','수료율']].map(([m,l])=>`<button class="${mode===m?'on':''}" onclick="S.sm='${m}';render()">${l}</button>`).join('')}</div>
+    ${isPub()?'':`<button class="btn" onclick='download("요약표_${S.sem}.csv",toCSV(${JSON.stringify(cols.map(c=>({t:c.t,k:c.k})))},window._sumData),"text/csv")'>CSV 내려받기</button>`}
+    <span class="meta">${semLabel(S.sem)} · 대학수 ${univs.length} · 교과목 ${courses.length}</span></div>
+    ${table(cols,data,{foot})}`
+    + (window._sumData=data, '');
+};
+
+VIEWS.students = () => {
+  let rs = rows();
+  const all = rs;
+  if(S.fc!=='ALL') rs=rs.filter(r=>r.c===S.fc);
+  if(S.fk!=='ALL') rs=rs.filter(r=>r.k===S.fk);
+  if(S.q){const q=S.q.toLowerCase();rs=rs.filter(r=>(r.n+r.id+r.u+r.k).toLowerCase().includes(q))}
+  const cols=[{t:'연도별학기',k:'s',f:r=>semLabel(r.s),raw:r=>semLabel(r.s)},{t:'대학명',k:'u'},{t:'이름',k:'n'},{t:'아이디',k:'id'},
+    {t:'출석점수',k:'a',n:1},{t:'과제점수',k:'h',n:1},{t:'시험점수',k:'e',n:1},{t:'총점',k:'t',n:1},{t:'수료여부',k:'c',f:r=>statusPill(r.c)},{t:'교과목명',k:'k'},{t:'구분',k:'g'}];
+  const PS=100, pages=Math.max(1,Math.ceil(rs.length/PS)); S.page=Math.min(S.page,pages-1);
+  const courses=uniq(all.map(r=>r.k)).sort(byCourse);
+  window._stuExport=()=>download(`공유학점_수강생_${S.sem}_${S.univ}.csv`,toCSV(cols,rs),'text/csv');
+  return `<div class="toolbar">
+    <input type="search" placeholder="이름·아이디·대학·교과목 검색" value="${esc(S.q)}" oninput="S.q=this.value;S.page=0;render(true)" style="min-width:240px" id="qbox">
+    <select onchange="S.fc=this.value;S.page=0;render()">${['ALL','수료','미수료','수강중'].map(v=>`<option value="${v}" ${S.fc===v?'selected':''}>${v==='ALL'?'수료여부 전체':v}</option>`).join('')}</select>
+    <select onchange="S.fk=this.value;S.page=0;render()" style="max-width:260px"><option value="ALL">교과목 전체</option>${courses.map(k=>`<option ${S.fk===k?'selected':''}>${esc(k)}</option>`).join('')}</select>
+    ${isPub()?'':'<button class="btn" onclick="_stuExport()">CSV 내려받기</button>'}
+    <span class="meta">${fmt(rs.length)}건 / ${scopeText()}</span></div>
+    ${table(cols, rs.slice(S.page*PS,(S.page+1)*PS))}
+    <div class="pager"><button class="btn" onclick="S.page=Math.max(0,S.page-1);render()">‹</button> ${S.page+1} / ${pages} <button class="btn" onclick="S.page=Math.min(${pages-1},S.page+1);render()">›</button></div>
+    <div class="hint">개인정보 보호: 휴대폰·이메일·비밀번호 열은 대시보드에 넣지 않았습니다. ${RAW.public?'이름·아이디는 가려서 게시합니다. ':`지금 <b>${PRIV.on?'실명 표시 중':'마스킹 상태'}</b>이며, CSV 내려받기도 화면 상태를 그대로 따릅니다. `}2025-1학기는 원자료에 아이디가 없어 <b>학번</b>을 아이디로 사용합니다. 중복 행(같은 학기·대학·아이디·교과목)은 1건으로 합쳤습니다.</div>`;
+};
+
+VIEWS.enroll = () => {
+  const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
+  const rs = DB.records.filter(r=>r.s===sem && (S.univ==='ALL'||r.u===S.univ));
+  const cancels = (DB.cancels||[]).filter(r=>r.s===sem && (S.univ==='ALL'||r.u===S.univ));
+  const st = stat(rs);
+  const byU=[...groupBy(rs,'u')].map(([u,v])=>({u,n:v.length,p:uniq(v.map(r=>r.p)).length,g1:v.filter(r=>r.g==='교과').length,g2:v.filter(r=>r.g==='비교과').length,c:cancels.filter(c=>c.u===u).length})).sort((a,b)=>b.n-a.n);
+  const multi=[...groupBy(rs,r=>r.p).values()].map(v=>v.length);
+  const dist=[1,2,3,4].map(k=>({label:k===4?'4과목 이상':k+'과목',a:multi.filter(x=>k===4?x>=4:x===k).length}));
+  return `<div class="card">${kpis([[fmt(st.n),'수강신청 건수'],[fmt(st.people),'신청 학생(명)'],[fmt(cancels.length),'수강취소'],[fmt(st.univ),'신청 대학'],[fmt(st.course),'개설 교과목'],[(st.n/Math.max(1,st.people)).toFixed(2),'1인당 신청 과목']])}
+    <div class="meta">${semLabel(sem)} 기준 ${S.sem==='ALL'?'(전체 선택 시 가장 최근 학기 표시)':''} · 원자료: 전체수강신청 / 전체수강신청(비교과) / 수강취소(확인)</div></div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="card"><h2>대학별 신청 현황</h2>${table([{t:'대학명',k:'u'},{t:'신청 건수',k:'n',n:1},{t:'학생 수',k:'p',n:1},{t:'교과',k:'g1',n:1},{t:'비교과',k:'g2',n:1},{t:'취소',k:'c',n:1}],byU,{foot:['합계',fmt(st.n),fmt(st.people),fmt(byU.reduce((s,x)=>s+x.g1,0)),fmt(byU.reduce((s,x)=>s+x.g2,0)),fmt(cancels.length)]})}</div>
+      <div class="card"><h2>1인당 신청 과목 수</h2>${bars(dist,Math.max(...dist.map(d=>d.a),1))}
+        <h3>수강취소 명단 (${cancels.length}건)</h3>${table([{t:'대학명',k:'u'},{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'교과목',k:'k'}],cancels.slice(0,200))}</div>
+    </div>`;
+};
+
+function courseMeta(sem){return (DB.meta[sem]?.courses)||[]}
+VIEWS.leads = () => {
+  const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
+  const meta = courseMeta(sem);
+  const rs = DB.records.filter(r=>r.s===sem);
+  const cnt = groupBy(rs,'k');
+  const names = uniq([...meta.map(m=>m.k), ...cnt.keys()]).sort(byCourse);
+  const data = names.map((k,i)=>{const m=meta.find(x=>x.k===k)||{};const v=cnt.get(k)||[];return {i:i+1,k,lead:m.lead||'',n:v.length,d:v.filter(r=>r.c==='수료').length,ban:m.ban||'',fee:m.fee||0,dev:m.dev||0,rep:m.rep||0,weeks:(m.weeks||[]).length}});
+  const sum=(f)=>data.reduce((s,x)=>s+(+x[f]||0),0);
+  return `<div class="toolbar"><span class="meta">${semLabel(sem)} 과정책임자·운영비 · 인원은 수강 자료에서 자동 집계</span>
+    ${isPub()?'':`<button class="btn" onclick="go('input')">기본자료 입력에서 수정</button>
+    ${meta.length?'':`<button class="btn" onclick="copyMeta('${sem}')">이전 학기 정보 복사</button>`}`}</div>
+    ${meta.length?'':`<div class="hint">${semLabel(sem)}의 과정책임자 정보가 아직 없습니다.${isPub()?'':' 「이전 학기 정보 복사」 또는 「기본자료 입력」에서 등록하세요.'}</div>`}
+    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반',k:'ban',n:1},{t:'강의료',k:'fee',n:1},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
+      {foot:['','','합계','',fmt(sum('n')),fmt(sum('d')),'',fmt(sum('fee')),fmt(sum('dev')),fmt(sum('rep')),'']})}`;
+};
+function copyMeta(sem){
+  const prev = DB.sems.filter(s=>s<sem && courseMeta(s).length).pop() || DB.sems.filter(s=>courseMeta(s).length).pop();
+  if(!prev){toast('복사할 학기 정보가 없습니다');return}
+  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),courses:courseMeta(prev).map(c=>({...c,dev:0,rep:0,weeks:[]}))}; LS.set('meta',m); loadDB(); render(); toast(`${semLabel(prev)} 정보를 복사했습니다(개발비는 0으로)`);
+}
+
+VIEWS.badge = () => {
+  const basis = S.mb||'take';
+  const bd = badges(S.sem, basis);
+  const sel = S.md||'doc', tier = S.mt||'ALL';
+  const inU = x=>S.univ==='ALL'||x.u===S.univ;
+  const m0 = MICRO.find(m=>m.id===sel);
+  const list = bd[sel].filter(inU).filter(x=>tier==='ALL'||x.tier===tier);
+  const tc = cat=>cat==='AI 심화과정'?'심화':'기초';
+  window._bdExport=()=>{const cols=[{t:'마이크로디그리',k:'m'},{t:'구분',k:'tier'},{t:'대학명',k:'u'},{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'해당 과목 수',k:'cnt'},{t:'수료',k:'done'},{t:'수강중',k:'ing'},{t:'수강 교과목',k:'c'}];
+    const all=[];MICRO.forEach(m=>bd[m.id].filter(inU).forEach(x=>all.push({m:m.name,...x,c:x.courses.join(' / ')})));
+    download(`마이크로디그리_해당자_${S.sem}.csv`,toCSV(cols,all),'text/csv')};
+  const offered = k => uniq(DB.records.filter(r=>ckey(r.k)===ckey(k)).map(r=>r.s)).sort().map(semLabel).join(', ')||'–';
+  return `<div class="toolbar">
+      <span class="meta">기준</span><div class="seg">${[['take','수강(수료+수강중)'],['done','수료만']].map(([v,l])=>`<button class="${basis===v?'on':''}" onclick="S.mb='${v}';render()">${l}</button>`).join('')}</div>
+      <span class="meta">${semLabel(S.sem)}까지 누적 · ${S.univ==='ALL'?'전체 대학':esc(S.univ)}</span></div>
+    <div class="grid4">${MICRO.map(m=>{const l=bd[m.id].filter(inU);const n3=l.filter(x=>x.cnt>=3).length,n2=l.filter(x=>x.cnt===2).length;
+      return `<div class="md" style="--mc:${m.c};cursor:pointer;${sel===m.id?'outline:2px solid '+m.c:''}" onclick="S.md='${m.id}';render()">
+      <div class="hd">${m.name} <small style="opacity:.8;font-weight:400">· ${m.courses.length}과목</small></div>
+      <div class="chips">${m.courses.map(k=>`<span class="chip"><i>${tc(cinfo(k).cat)}</i>${esc(k)}</span>`).join('')}</div>
+      <div class="ft"><span>3개 이상 <b>${n3}</b>명</span><span>2개 <b style="color:var(--ink2)">${n2}</b>명</span></div></div>`}).join('')}</div>
+    <div class="card" style="margin-top:14px">
+      <div class="toolbar"><h2 style="margin:0">${m0.name} · 해당자 명단</h2>
+        <div class="seg">${[['ALL','전체'],['3개 이상','3개 이상'],['2개','2개']].map(([v,l])=>`<button class="${tier===v?'on':''}" onclick="S.mt='${v}';render()">${l} (${v==='ALL'?bd[sel].filter(inU).length:bd[sel].filter(inU).filter(x=>x.tier===v).length})</button>`).join('')}</div>
+        <span style="flex:1"></span>${isPub()?'':'<button class="btn" onclick="_bdExport()">4개 과정 해당자 CSV</button>'}</div>
+      ${table([{t:'No',k:'_i',n:1},{t:'구분',k:'tier',f:r=>tierPill(r.tier)},{t:'대학명',k:'u'},{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'해당 과목',k:'cnt',n:1,f:r=>`${r.cnt}/${m0.courses.length}`},{t:'수료',k:'done',n:1},{t:'수강중',k:'ing',n:1},{t:'수강 교과목',k:'courses',f:r=>esc(r.courses.join(' · '))}],list.map((x,i)=>({...x,_i:i+1})))}
+    </div>
+    <div class="card" style="margin-top:14px"><h2>마이크로디그리 교과목 안내</h2>
+      ${table([{t:'마이크로디그리',k:'m',f:r=>r.first?`<b style="color:${r.c}">${esc(r.m)}</b>`:''},{t:'과정',k:'cat'},{t:'교과목명',k:'k'},{t:'개설(자료 있는) 학기',k:'off'},{t:'다른 과정과 공통',k:'share'}],
+        MICRO.flatMap(m=>m.courses.map((k,i)=>({first:i===0,c:m.c,m:m.name,cat:cinfo(k).cat,k,off:offered(k),share:MICRO.filter(x=>x!==m&&x.courses.includes(k)).map(x=>x.name.replace(/^AI |\s?전문가$/g,'')).join(', ')||'–'}))))}
+      <div class="hint">· 같은 과목을 여러 학기에 들어도 1과목으로 셉니다. (1)과 (2)는 서로 다른 과목입니다.<br>· 「AI 정보검색 및 요약」「AI 클라우드 활용법」은 정보·데이터와 스마트 워킹 두 과정에 함께 들어갑니다.</div>
+    </div>`;
+};
+
+/* --- 기본자료 입력 --- */
+const INPUT_FIELDS = [
+  ['title','사업명','AI 기반 공유학점 교육과정 운영'],['org','주관기관',''],['period','운영기간','예: 2026.03.02 ~ 2026.06.19'],['manager','담당자',''],
+  ['goal','사업 목적',''],['devSummary','개발 개요 (개발보고서)','신규 개발·개편 교과목의 개발 방향, 콘텐츠 형식(영상·실습 등)'],['devQuality','품질관리 · 검수',''],
+  ['outcome','주요 성과 (완료보고서)',''],['issue','운영상 문제점',''],['plan','개선 계획 · 차기 학기 반영',''],
+];
+VIEWS.input = () => {
+  const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
+  const m = DB.meta[sem]||{}; const info = m.info||{};
+  const meta = courseMeta(sem);
+  const names = uniq([...meta.map(x=>x.k), ...uniq(DB.records.filter(r=>r.s===sem).map(r=>r.k))]).sort(byCourse);
+  return `<div class="card"><h2>${semLabel(sem)} 기본자료</h2>
+    <div class="hint">여기 입력한 문장과 아래 교과목 정보가 개발보고서·완료보고서에 그대로 들어갑니다. 숫자(수강·수료·대학별 표)는 수강 자료에서 자동 계산됩니다. 입력값은 이 브라우저에만 저장됩니다. <b>게시 주소에 반영하려면 「입력 내용 내보내기」 파일을 Claude에게 주거나 자료 저장소의 data/meta.json으로 올리세요.</b></div>
+    <div class="form">${INPUT_FIELDS.map(([k,l,ph])=>`<label>${l}</label>${['goal','devSummary','devQuality','outcome','issue','plan'].includes(k)?`<textarea data-k="${k}" placeholder="${esc(ph)}">${esc(info[k]||'')}</textarea>`:`<input type="text" data-k="${k}" value="${esc(info[k]||'')}" placeholder="${esc(ph)}">`}`).join('')}</div>
+    <h3>교과목 정보 (과정책임자 · 운영비 · 개발 진도)</h3>
+    <div class="tw"><table><thead><tr><th>교과목명</th><th>과정책임자</th><th class="n">분반</th><th class="n">강의료</th><th class="n">개발비</th><th class="n">보고서비</th><th>개발 완료 주차 (예: 1,2,3)</th></tr></thead><tbody>
+    ${names.map(k=>{const c=meta.find(x=>x.k===k)||{};return `<tr data-course="${esc(k)}"><td>${esc(k)}</td><td><input type="text" data-f="lead" value="${esc(c.lead||'')}" style="width:130px"></td>
+      <td><input type="number" data-f="ban" value="${c.ban||1}" style="width:60px"></td><td><input type="number" data-f="fee" value="${c.fee||0}" style="width:100px"></td>
+      <td><input type="number" data-f="dev" value="${c.dev||0}" style="width:110px"></td><td><input type="number" data-f="rep" value="${c.rep||0}" style="width:100px"></td>
+      <td><input type="text" data-f="weeks" value="${(c.weeks||[]).join(',')}" style="width:140px"></td></tr>`}).join('')}
+    </tbody></table></div>
+    <div class="toolbar" style="margin-top:12px"><button class="btn pri" onclick="saveInput('${sem}')">저장</button>
+      <button class="btn" onclick="download('meta.json',JSON.stringify({meta:LS.get('meta',{})},null,1),'application/json')">입력 내용 내보내기 (meta.json)</button>
+      <button class="btn" onclick="go('devrep')">개발보고서 보기</button><button class="btn" onclick="go('comprep')">완료보고서 보기</button></div></div>`;
+};
+function saveInput(sem){
+  const info={}; document.querySelectorAll('[data-k]').forEach(e=>info[e.dataset.k]=e.value.trim());
+  const courses=[...document.querySelectorAll('tr[data-course]')].map(tr=>{const g=f=>tr.querySelector(`[data-f="${f}"]`).value;return {k:tr.dataset.course,lead:g('lead').trim(),ban:+g('ban')||1,fee:+g('fee')||0,dev:+g('dev')||0,rep:+g('rep')||0,weeks:g('weeks').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=14)}});
+  const m=LS.get('meta',{}); m[sem]={info,courses}; if(LS.set('meta',m)){loadDB();toast('저장했습니다 · 보고서에 바로 반영됩니다')}
+}
+
+/* --- 보고서 엔진: sections 배열 → 화면/MD/HTML 동시 생성 --- */
+function md2table(cols,data){return `| ${cols.map(c=>c.t).join(' | ')} |\n|${cols.map(c=>c.n?'---:':'---').join('|')}|\n`+data.map(r=>`| ${cols.map(c=>c.raw?c.raw(r):fmt(r[c.k])).join(' | ')} |`).join('\n')}
+function reportShell(r){ // r:{eyebrow,title,sub,lead,ck:[[v,l]],sections:[{t,html,md}]}
+  window._rep=r;
+  return `<div class="rep"><nav class="toc"><b style="font-size:13px">목차</b>${r.sections.map((s,i)=>`<a href="#sec${i}" onclick="document.getElementById('sec${i}').scrollIntoView({behavior:'smooth'});return false"><small>${String(i+1).padStart(2,'0')}</small>${s.t}</a>`).join('')}</nav>
+  <div class="paper"><div class="cover"><div class="eb">${r.eyebrow}</div><div class="rule"></div><h1>${r.title}</h1><div class="sub">${r.sub}</div><p>${r.lead}</p>
+    <div class="ck">${r.ck.map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div></div>
+  ${isPub()?'':`<div class="rbar"><button class="btn" onclick="repMD()">↓ MD 다운로드</button><button class="btn" onclick="repHTML()">↓ HTML 다운로드</button><button class="btn" onclick="window.print()">PDF · 인쇄</button></div>`}
+  ${r.sections.map((s,i)=>`<section class="sec" id="sec${i}"><h2><small>${String(i+1).padStart(2,'0')}</small>${s.t}</h2>${s.html}</section>`).join('')}</div></div>`;
+}
+function repMD(){const r=window._rep;download(`${r.title}_${r.sub}.md`.replace(/[\\/:*?"<>|·\s]+/g,'_'),`# ${r.title}\n\n${r.sub}\n\n${r.ck.map(([v,l])=>`- **${l}**: ${v}`).join('\n')}\n\n`+r.sections.map((s,i)=>`## ${i+1}. ${s.t}\n\n${s.md}\n`).join('\n'),'text/markdown')}
+function repHTML(){const r=window._rep;const css=[...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+  download(`${r.title}_${r.sub}.html`.replace(/[\\/:*?"<>|·\s]+/g,'_'),`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(r.title)}</title><style>${css}</style></head><body><main style="max-width:900px;margin:auto">${document.querySelector('.paper').outerHTML.replace(/<div class="rbar">[\s\S]*?<\/div>/,'')}</main></body></html>`,'text/html')}
+const txt = (v,ph)=> v? `<p>${esc(v).replace(/\n/g,'<br>')}</p>` : `<p class="empty">${ph||(isPub()?'–':'기본자료 입력에서 작성하세요.')}</p>`;
+const mdt = (v)=> v||'_(미작성)_';
+
+VIEWS.devrep = () => {
+  const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
+  const info=(DB.meta[sem]||{}).info||{}; const meta=courseMeta(sem);
+  const dev = meta.filter(c=>c.dev>0||c.weeks?.length);
+  const cnt = groupBy(DB.records.filter(r=>r.s===sem),'k');
+  const totDev = dev.reduce((s,c)=>s+(c.dev||0),0), totRep=dev.reduce((s,c)=>s+(c.rep||0),0);
+  const prog = dev.length? Math.round(dev.reduce((s,c)=>s+(c.weeks||[]).length,0)/(dev.length*14)*100):0;
+  const cols=[{t:'No',k:'i',n:1},{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도',k:'w',n:1,raw:r=>`${r.weeks.length}/14주`},{t:'수강신청',k:'n',n:1}];
+  const data=dev.map((c,i)=>({i:i+1,...c,weeks:c.weeks||[],w:`${(c.weeks||[]).length}/14주`,n:(cnt.get(c.k)||[]).length}));
+  const wk=(c)=>`<div style="display:flex;gap:2px">${Array.from({length:14},(_,i)=>`<span title="${i+1}주" style="width:14px;height:14px;border-radius:3px;background:${(c.weeks||[]).includes(i+1)?'var(--bar)':'var(--panel2)'};border:1px solid var(--line)"></span>`).join('')}</div>`;
+  const leadsAll = meta.filter(c=>c.lead);
+  return reportShell({eyebrow:'공유학점 · 개발보고서',title:'교과목 개발보고서',sub:`${info.title||'공유학점 교육과정'} · ${semLabel(sem)}`,
+    lead:`교과목 정보(개발비·과정책임자·개발 주차)와 수강신청 자료로 자동 생성한 보고서입니다.`,
+    ck:[[dev.length,'개발 교과목'],[fmt(totDev)+'원','개발비'],[prog+'%','평균 개발 진도']],
+    sections:[
+      {t:'사업 개요',html:`<table><tr><th>사업명</th><td>${esc(info.title||'–')}</td></tr><tr><th>주관기관</th><td>${esc(info.org||'–')}</td></tr><tr><th>운영기간</th><td>${esc(info.period||'–')}</td></tr><tr><th>담당자</th><td>${esc(info.manager||'–')}</td></tr></table>${txt(info.goal)}`,
+        md:`- 사업명: ${info.title||'–'}\n- 주관기관: ${info.org||'–'}\n- 운영기간: ${info.period||'–'}\n- 담당자: ${info.manager||'–'}\n\n${mdt(info.goal)}`},
+      {t:'개발 교과목 현황',html:dev.length?table(cols.map(c=>c.k==='w'?{...c,f:wk}:c),data,{foot:['','합계','',fmt(totDev),fmt(totRep),prog+'%',fmt(data.reduce((s,x)=>s+x.n,0))]}):'<p class="empty">개발비 또는 개발 주차가 입력된 교과목이 없습니다.</p>',md:md2table(cols,data)},
+      {t:'개발 개요',html:txt(info.devSummary),md:mdt(info.devSummary)},
+      {t:'과정책임자 배정',html:table([{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'분반',k:'ban',n:1}],leadsAll),md:md2table([{t:'교과목명',k:'k'},{t:'과정책임자',k:'lead'},{t:'분반',k:'ban'}],leadsAll)},
+      {t:'예산 집행',html:`<p>개발비 <b>${fmt(totDev)}원</b>, 보고서비 <b>${fmt(totRep)}원</b>, 합계 <b>${fmt(totDev+totRep)}원</b>.</p>`,md:`개발비 ${fmt(totDev)}원, 보고서비 ${fmt(totRep)}원, 합계 ${fmt(totDev+totRep)}원`},
+      {t:'품질관리 · 검수',html:txt(info.devQuality),md:mdt(info.devQuality)},
+    ]});
+};
+
+function completionSections(rs, sem, info, univ){
+  const st=stat(rs);
+  const byK=[...groupBy(rs,'k')].map(([k,v],i)=>{const s=stat(v);return {cat:cinfo(k).cat,k,n:s.n,d:s.done,f:s.fail,r:s.rate+'%',avg:s.avg??'–'}}).sort((a,b)=>byCourse(a.k,b.k)).map((x,i)=>({i:i+1,...x}));
+  const byU=[...groupBy(rs,'u')].map(([u,v])=>{const s=stat(v);return {u,n:s.n,p:s.people,d:s.done,f:s.fail,r:s.rate+'%'}}).sort((a,b)=>b.n-a.n);
+  const kc=[{t:'No',k:'i',n:1},{t:'구분',k:'cat'},{t:'교과목명',k:'k'},{t:'수강',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'미수료',k:'f',n:1},{t:'수료율',k:'r',n:1},{t:'평균 총점',k:'avg',n:1}];
+  const uc=[{t:'대학명',k:'u'},{t:'수강 건수',k:'n',n:1},{t:'학생 수',k:'p',n:1},{t:'수료',k:'d',n:1},{t:'미수료',k:'f',n:1},{t:'수료율',k:'r',n:1}];
+  const bd=badges(sem); const bdRows=MICRO.map(m=>{const l=bd[m.id].filter(x=>!univ||x.u===univ);return {m:m.name,k:m.courses.length,n:l.filter(x=>x.cnt>=3).length,c:l.filter(x=>x.cnt===2).length}});
+  const bc=[{t:'마이크로디그리',k:'m'},{t:'해당 교과목 수',k:'k',n:1},{t:'3개 이상 수강(명)',k:'n',n:1},{t:'2개 수강(명)',k:'c',n:1}];
+  const best=byK.filter(x=>x.n>=10).sort((a,b)=>parseFloat(b.r)-parseFloat(a.r))[0], worst=byK.filter(x=>x.n>=10).sort((a,b)=>parseFloat(a.r)-parseFloat(b.r))[0];
+  const auto=`${semLabel(sem)} ${univ?univ+' ':''}공유학점은 ${st.univ}개 대학, ${st.course}개 교과목에서 총 ${fmt(st.n)}건(학생 ${fmt(st.people)}명)이 수강했고, ${fmt(st.done)}건이 수료하여 수료율은 ${st.rate}%입니다.`+(best?` 수료율이 가장 높은 교과목은 「${best.k}」(${best.r}), 가장 낮은 교과목은 「${worst.k}」(${worst.r})입니다.`:'');
+  const fails=rs.filter(r=>r.c==='미수료');
+  const failReason=[['출석 미달',fails.filter(r=>r.a!=null&&r.a<(r.e!=null?16:40)).length],['과제 미제출(0점)',fails.filter(r=>r.h===0).length]];
+  const secs=[
+    {t:'한 장 요약',html:`<p>${auto}</p>${kpis([[fmt(st.n),'수강'],[fmt(st.done),'수료'],[st.rate+'%','수료율'],[st.avg??'–','평균 총점']])}`,md:auto},
+    {t:'사업 개요',html:`<table><tr><th>사업명</th><td>${esc(info.title||'–')}</td></tr><tr><th>운영기간</th><td>${esc(info.period||'–')}</td></tr><tr><th>주관기관</th><td>${esc(info.org||'–')}</td></tr></table>${txt(info.goal)}`,md:`- 사업명: ${info.title||'–'}\n- 운영기간: ${info.period||'–'}\n\n${mdt(info.goal)}`},
+    {t:'교과목별 운영 결과',html:table(kc,byK),md:md2table(kc,byK)},
+  ];
+  if(!univ) secs.push({t:'대학별 운영 결과',html:table(uc,byU),md:md2table(uc,byU)});
+  secs.push(
+    {t:'마이크로디그리 · 디지털배지',html:table(bc,bdRows)+`<p class="meta">${semLabel(sem)}까지 누적, 수료+수강중 기준(미수료 제외).</p>`,md:md2table(bc,bdRows)},
+    {t:'미수료 분석',html:`<p>미수료 ${fmt(fails.length)}건 중 ${failReason.map(([l,n])=>`${l} ${fmt(n)}건`).join(', ')} (중복 가능, 자동 추정).</p>`,md:`미수료 ${fails.length}건 · `+failReason.map(([l,n])=>`${l} ${n}건`).join(', ')},
+    {t:'주요 성과',html:txt(info.outcome),md:mdt(info.outcome)},
+    {t:'문제점 및 개선 계획',html:`<h3>문제점</h3>${txt(info.issue)}<h3>개선 계획</h3>${txt(info.plan)}`,md:`### 문제점\n${mdt(info.issue)}\n\n### 개선 계획\n${mdt(info.plan)}`},
+  );
+  if(univ){
+    const sc=[{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'교과목명',k:'k'},{t:'출석',k:'a',n:1},{t:'과제',k:'h',n:1},{t:'시험',k:'e',n:1},{t:'총점',k:'t',n:1},{t:'수료여부',k:'c'}];
+    const list=[...rs].sort((a,b)=>byCourse(a.k,b.k)||String(a.n).localeCompare(String(b.n)));
+    secs.push({t:'붙임: 수강생 명단',html:table(sc.map(c=>c.k==='c'?{...c,f:r=>statusPill(r.c)}:c),list),md:md2table(sc,list)});
+  }
+  return {st,secs};
+}
+VIEWS.comprep = () => {
+  const sem = S.sem==='ALL' ? DB.sems.filter(s=>DB.records.some(r=>r.s===s&&r.c!=='수강중')).pop() : S.sem;
+  const info=(DB.meta[sem]||{}).info||{};
+  const rs=DB.records.filter(r=>r.s===sem);
+  const {st,secs}=completionSections(rs,sem,info,null);
+  const warn = st.ing>0&&st.done+st.fail===0 ? `<div class="hint">${semLabel(sem)}은 아직 성적이 들어오지 않았습니다(수강중 ${fmt(st.ing)}건). ${isPub()?'성적이 반영되면 완료보고서가 채워집니다.':'「자료 들여오기」에서 성적 파일을 올리면 완료보고서가 채워집니다.'}</div>`:'';
+  return warn+reportShell({eyebrow:'공유학점 · 완료보고서 (통합)',title:'공유학점 운영 완료보고서',sub:`${info.title||'공유학점 교육과정'} · ${semLabel(sem)}`,
+    lead:'수강·성적 자료와 기본자료를 바탕으로 자동 생성되었습니다. 숫자는 자료가 바뀌면 즉시 다시 계산됩니다.',
+    ck:[[st.univ,'참여 대학'],[fmt(st.n),'수강 건수'],[st.rate+'%','수료율']],sections:secs});
+};
+VIEWS.univrep = () => {
+  const sem = S.sem==='ALL' ? DB.sems.filter(s=>DB.records.some(r=>r.s===s&&r.c!=='수강중')).pop() : S.sem;
+  const univs=uniq(DB.records.filter(r=>r.s===sem).map(r=>r.u)).sort();
+  const u = S.univ!=='ALL'&&univs.includes(S.univ)?S.univ:univs[0];
+  if(!u) return '<div class="card empty">해당 학기 자료가 없습니다.</div>';
+  const info=(DB.meta[sem]||{}).info||{};
+  const rs=DB.records.filter(r=>r.s===sem&&r.u===u);
+  const {st,secs}=completionSections(rs,sem,info,u);
+  return `<div class="toolbar"><select onchange="S.univ=this.value;render()">${univs.map(x=>`<option ${x===u?'selected':''}>${x}</option>`).join('')}</select>
+    <span class="meta">대학을 바꾸면 보고서가 바로 다시 만들어집니다. 상단 대학 선택과 연동됩니다.</span></div>`+
+    reportShell({eyebrow:'공유학점 · 완료보고서 (대학별)',title:'공유학점 운영 완료보고서',sub:`${u} · ${semLabel(sem)}`,
+    lead:`${u} 소속 학생의 수강·수료 결과와 디지털배지 발급 현황입니다.`,ck:[[fmt(st.people),'참여 학생'],[fmt(st.n),'수강 건수'],[st.rate+'%','수료율']],sections:secs});
+};
+
+/* --- 자료 들여오기: 열 이름 자동 인식 --- */
+const COLMAP = {u:['대학명','대학'],n:['이름','성명'],id:['아이디','로그인아이디','ID','학번'],a:['출석점수','출석'],h:['과제점수'],e:['시험점수'],t:['총점','최종성적','합계'],c:['수료여부','학점이수','이수여부'],k:['교과목명','교과목','수강신청교과목','과목명'],g:['구분']};
+VIEWS.import = () => `<div class="card"><h2>엑셀 자료 들여오기</h2>
+  <div class="hint">학기별 성적·수강신청 엑셀(.xlsx/.csv)을 올리면 열 이름을 자동 인식해 표준 형식(연도별학기·대학명·이름·아이디·출석·과제·시험·수료여부·교과목명)으로 바꿉니다. 들여온 학기는 기존 자료를 <b>대체</b>합니다.</div>
+  <div class="toolbar"><label>학기 <input type="text" id="impSem" value="${S.sem==='ALL'?'2026-2':S.sem}" style="width:90px" placeholder="2027-1"></label>
+    <input type="file" id="impFile" accept=".xlsx,.xls,.csv" onchange="readImport(this.files[0])"></div>
+  <div id="impPrev"></div>
+  <h3>들여온 학기</h3>${(()=>{const im=LS.get('imported',{});const k=Object.keys(im);return k.length?k.map(s=>`<div class="toolbar"><b>${semLabel(s)}</b> ${fmt(im[s].length)}건 <button class="btn" onclick="dropImport('${s}')">되돌리기(기본 자료로)</button></div>`).join(''):'<p class="empty">없음</p>'})()}
+  </div>`;
+let _imp=null;
+function readImport(file){
+  if(!file) return; if(typeof XLSX==='undefined'){toast('엑셀 읽기 도구를 불러오지 못했습니다(인터넷 연결 확인)');return}
+  const fr=new FileReader(); fr.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    const box=document.getElementById('impPrev');
+    box.innerHTML=`<div class="toolbar">시트 <select id="impSheet">${wb.SheetNames.map(s=>`<option>${esc(s)}</option>`).join('')}</select> <button class="btn" onclick="parseSheet()">열 인식</button></div>`;
+    _imp={wb}; parseSheet();
+  }; fr.readAsArrayBuffer(file);
+}
+function parseSheet(){
+  const ws=_imp.wb.Sheets[document.getElementById('impSheet').value];
+  const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+  const hi=aoa.findIndex(r=>r&&r.some(c=>String(c||'').trim()==='이름')); if(hi<0){toast('「이름」 열이 있는 머리글 행을 찾지 못했습니다');return}
+  const head=aoa[hi].map(c=>String(c||'').trim()); const idx={};
+  Object.entries(COLMAP).forEach(([f,names])=>{for(const nm of names){const i=head.indexOf(nm);if(i>=0){idx[f]=i;break}}});
+  const sem=document.getElementById('impSem').value.trim();
+  const num=v=>v==null||v===''||isNaN(+v)?null:Math.round(+v*10)/10;
+  const recs=[];const seen=new Set();
+  aoa.slice(hi+1).forEach(r=>{ if(!r||!r[idx.u]||!r[idx.n]) return;
+    let c=idx.c!=null?String(r[idx.c]||'').trim():''; c=c==='P'?'수료':c==='F'?'미수료':c||'수강중';
+    const o={p:null,s:sem,u:String(r[idx.u]).trim(),n:String(r[idx.n]).trim(),id:String(r[idx.id]??'').trim(),a:num(r[idx.a]),h:num(r[idx.h]),e:num(r[idx.e]),t:num(r[idx.t]),c,k:normCourse(r[idx.k]),g:String(r[idx.g]||'').includes('비교과')?'비교과':'교과'};
+    o.p=o.u+'|'+o.id; const key=[o.u,o.id,o.k,o.g].join('|'); if(seen.has(key)) return; seen.add(key); recs.push(o)});
+  _imp.recs=recs;
+  const lab={u:'대학명',n:'이름',id:'아이디',a:'출석',h:'과제',e:'시험',t:'총점',c:'수료여부',k:'교과목명',g:'구분'};
+  document.getElementById('impPrev').insertAdjacentHTML('beforeend',`<p>인식된 열: ${Object.keys(lab).map(f=>`<span class="pill ${idx[f]!=null?'p-ok':'p-no'}">${lab[f]}${idx[f]!=null?' ← '+esc(head[idx[f]]):' 없음'}</span>`).join(' ')}</p>
+    <p>${fmt(recs.length)}건 (중복 제거 후) · 미리보기 10건</p>${table([{t:'대학명',k:'u'},{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'출석',k:'a',n:1},{t:'과제',k:'h',n:1},{t:'시험',k:'e',n:1},{t:'총점',k:'t',n:1},{t:'수료여부',k:'c'},{t:'교과목명',k:'k'}],recs.slice(0,10))}
+    <div class="toolbar" style="margin-top:10px"><button class="btn pri" onclick="applyImport()">${esc(sem)} 학기로 반영</button></div>`);
+}
+function applyImport(){const sem=document.getElementById('impSem').value.trim();if(!/^\d{4}-[12]$/.test(sem)){toast('학기는 2026-2 형식으로 적어 주세요');return}
+  const im=LS.get('imported',{}); im[sem]=_imp.recs.map(r=>({...r,s:sem})); if(LS.set('imported',im)){loadDB();S.sem=sem;renderShell();render();toast(`${semLabel(sem)} ${_imp.recs.length}건 반영`)}}
+function dropImport(s){const im=LS.get('imported',{});delete im[s];LS.set('imported',im);loadDB();renderShell();render()}
+
+VIEWS.backup = () => `<div class="card"><h2>백업 · 내보내기</h2>
+  <div class="hint"><b>게시용 반영:</b> 기본자료 입력 내용은 게시용 주소에 자동으로 넘어가지 않습니다. 「백업 파일 내려받기」로 받은 파일을 Claude에게 주거나 비공개 자료 저장소의 <code>data/meta.json</code>으로 올리면 게시용에 반영됩니다.</div>
+  <div class="hint">기본자료 입력·들여온 학기는 이 브라우저(localStorage)에만 저장됩니다. 다른 PC로 옮기거나 보관하려면 백업 파일을 내려받으세요.</div>
+  <div class="toolbar"><button class="btn pri" onclick="download('공유학점_백업_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify({meta:LS.get('meta',{}),imported:LS.get('imported',{})}),'application/json')">백업 파일 내려받기</button>
+  <label class="btn">백업 불러오기 <input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label>
+  <button class="btn" onclick="download('공유학점_전체수강생_통합.csv',toCSV([{t:'연도별학기',k:'s'},{t:'대학명',k:'u'},{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'출석점수',k:'a'},{t:'과제점수',k:'h'},{t:'시험점수',k:'e'},{t:'총점',k:'t'},{t:'수료여부',k:'c'},{t:'교과목명',k:'k'},{t:'구분',k:'g'}],DB.records),'text/csv')">전체 학기 통합 명단 CSV</button></div>
+  <h3>학기별 자료 현황</h3>${table([{t:'학기',k:'s',f:r=>semLabel(r.s)},{t:'건수',k:'n',n:1},{t:'대학',k:'u',n:1},{t:'교과목',k:'k',n:1},{t:'출처',k:'src'}],DB.sems.map(s=>{const x=DB.records.filter(r=>r.s===s);return {s,n:x.length,u:uniq(x.map(r=>r.u)).length,k:uniq(x.map(r=>r.k)).length,src:LS.get('imported',{})[s]?'들여온 자료':'기본 내장'}}))}
+  </div>`;
+function restore(f){const fr=new FileReader();fr.onload=e=>{try{const o=JSON.parse(e.target.result);LS.set('meta',o.meta||{});LS.set('imported',o.imported||{});loadDB();renderShell();render();toast('복원했습니다')}catch(err){toast('파일 형식이 맞지 않습니다')}};fr.readAsText(f)}
+
+/* ========== 5. 렌더링 ========== */
+function go(v){if(blocked(v))v='home';S.view=v;S.page=0;location.hash=v;renderShell();render();document.getElementById('side').classList.remove('open');window.scrollTo(0,0)}
+function renderShell(){
+  document.getElementById('side').innerHTML=`<div class="logo"><div class="mk">AID</div><div><b>전문대학 AID 컨소시엄</b><small>공유학점 운영 현황</small></div></div>`+
+    menu().map(g=>`<div class="grp">${g.grp}</div>`+g.items.map(it=>`<button class="nav ${S.view===it.id?'on':''}" onclick="go('${it.id}')"><span class="ic">${it.ic}</span>${it.t}${it.tag?`<span class="tag">${it.tag}</span>`:''}</button>`).join('')).join('');
+  document.getElementById('semSeg').innerHTML=[...DB.sems,'ALL'].map(s=>`<button class="${S.sem===s?'on':''}" onclick="S.sem='${s}';LS.set('sem',S.sem);S.page=0;renderShell();render()">${semLabel(s)}</button>`).join('');
+  const univs=uniq(DB.records.filter(r=>S.sem==='ALL'||r.s===S.sem).map(r=>r.u)).sort();
+  if(S.univ!=='ALL'&&!univs.includes(S.univ)) S.univ='ALL';
+  document.getElementById('univSel').innerHTML=`<option value="ALL">전체 대학 (${univs.length})</option>`+univs.map(u=>`<option ${S.univ===u?'selected':''}>${u}</option>`).join('');
+  const t=MENU_ALL.flatMap(g=>g.items).find(i=>i.id===S.view); document.getElementById('title').textContent=t?t.t:'';
+  document.getElementById('ver').textContent=`자료 기준 ${RAW.built}`;
+}
+function render(keepFocus){
+  document.getElementById('view').innerHTML=(VIEWS[S.view]||VIEWS.home)();
+  if(keepFocus){const q=document.getElementById('qbox');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
+}
+document.getElementById('univSel').onchange=e=>{S.univ=e.target.value;S.page=0;render()};
+function setTheme(t){document.documentElement.dataset.theme=t;LS.set('theme',t);document.querySelectorAll('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('.quick [data-qt]').forEach(b=>b.classList.toggle('on',b.dataset.qt===t))}
+document.querySelectorAll('#themeSeg button').forEach(b=>b.onclick=()=>setTheme(b.dataset.t));
+{const t=LS.get('theme',null);if(t)setTheme(t);else{const d=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.querySelectorAll('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===d));document.querySelectorAll('.quick [data-qt]').forEach(b=>b.classList.toggle('on',b.dataset.qt===d))}}
+applyPrivacy(); loadDB(); privBtn();
+if(!DB.sems.includes(S.sem)&&S.sem!=='ALL') S.sem='2026-1';
+const h=location.hash.slice(1); if(VIEWS[h]&&!blocked(h)) S.view=h;
+if(RAW.public) [...DATA_VIEWS,...EDIT_VIEWS].forEach(v=>delete VIEWS[v]);
+renderShell(); render();
+</script>
+</body>
+</html>
