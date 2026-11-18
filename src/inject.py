@@ -20,6 +20,10 @@ meta=dict(d['meta']); mp=os.environ.get('DASH_META')
 if mp and os.path.exists(mp):
     m=json.load(open(mp)); m=m.get('meta',m)
     for s,v in m.items(): meta[s]={**meta.get(s,{}),**v}
+# 설문 통계(샘플 보고서에서 추출한 survey.json {학기:{all,univ}}) 병합
+sp=os.environ.get('DASH_SURVEY')
+if sp and os.path.exists(sp):
+    for s,v in json.load(open(sp)).items(): meta[s]={**meta.get(s,{}),'survey':v}
 raw=dict(univs=univs,courses=courses,status=status,rows=rows,cancels=cancels,meta=meta,built=d['built'],public=public)
 t=open(sys.argv[2]).read()
 if public:  # 게시용 HTML에는 마스킹 버튼 자체를 넣지 않음

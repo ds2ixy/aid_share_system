@@ -306,7 +306,8 @@ function loadDB(){
   const recs = BASE.filter(r=>!imported[r.s]);
   Object.values(imported).forEach(a=>recs.push(...a.map(r=>({...r,p:r.p||r.u+'|'+r.id,...(PRIV.on?{}:{n:maskName(r.n),id:maskId(r.id)})}))));
   DB.records = recs;
-  DB.meta = Object.assign({}, RAW.meta, isPub() ? {} : LS.get('meta',{}));
+  DB.meta = {}; const lm = isPub() ? {} : LS.get('meta',{});
+  uniq([...Object.keys(RAW.meta||{}),...Object.keys(lm)]).forEach(s=>DB.meta[s]={...(RAW.meta||{})[s],...lm[s]});
   const sems = new Set([...SEMS, ...Object.keys(imported)]);
   DB.sems = [...sems].sort();
 }
@@ -532,6 +533,35 @@ const INPUT_FIELDS = [
   ['goal','사업 목적',''],['devSummary','개발 개요 (개발보고서)','신규 개발·개편 교과목의 개발 방향, 콘텐츠 형식(영상·실습 등)'],['devQuality','품질관리 · 검수',''],
   ['outcome','주요 성과 (완료보고서)',''],['issue','운영상 문제점',''],['plan','개선 계획 · 차기 학기 반영',''],
 ];
+function surveyEditor(sem){
+  const sv=survey(sem)||{}; const univs=uniq(DB.records.filter(r=>r.s===sem).map(r=>r.u)).sort();
+  const sc=S.svs&&(S.svs==='전체'||univs.includes(S.svs))?S.svs:'전체';
+  const X=(sc==='전체'?sv.all:(sv.univ||{})[sc])||{}; const it=X.items||{}, st=X.sat||{};
+  const inp=(k,f,v,w)=>`<input type="number" step="0.01" data-sv="${esc(k)}" data-f="${f}" value="${v==null?'':v}" style="width:${w||70}px">`;
+  return `<div class="card" style="margin-top:14px"><h2>${semLabel(sem)} 설문 결과 (디지털 역량 · 수업만족도)</h2>
+    <div class="hint">완료보고서의 「디지털 역량」「수업만족도」 표와 해설이 이 값으로 자동 생성됩니다. 25-2·26-1학기는 샘플 보고서에서 읽어 미리 채워 두었습니다. 대학별 보고서는 대학을 골라 같은 방식으로 입력합니다.</div>
+    <div class="toolbar">범위 <select onchange="S.svs=this.value;render()"><option ${sc==='전체'?'selected':''}>전체</option>${univs.map(u=>`<option ${sc===u?'selected':''}>${esc(u)}</option>`).join('')}</select>
+      응답자 수(N) <input type="number" id="svN" value="${X.N||''}" style="width:90px"></div>
+    <div class="tw" style="max-height:none"><table><thead><tr><th>항목</th><th class="n">사전 M</th><th class="n">사전 SD</th><th class="n">사후 M</th><th class="n">사후 SD</th><th class="n">t</th></tr></thead><tbody>
+    ${[...SV_KA,...SV_DOM,...SV_SUB].map(n=>{const x=it[n]||{};return `<tr><td>${SV_SUB.includes(n)?'&nbsp;&nbsp;· ':''}${esc(n)}</td><td>${inp(n,'pre',x.pre)}</td><td>${inp(n,'preSD',x.preSD)}</td><td>${inp(n,'post',x.post)}</td><td>${inp(n,'postSD',x.postSD)}</td><td>${inp(n,'t',x.t)}</td></tr>`}).join('')}
+    </tbody></table></div>
+    <h3>수업만족도 (5점 척도)</h3>
+    <div class="tw" style="max-height:none"><table><thead><tr><th>항목</th><th class="n">평균</th><th class="n">N</th><th class="n">표준편차</th></tr></thead><tbody>
+    ${[...SV_SAT,'총합'].map(n=>{const x=st[n]||{};return `<tr><td>${esc(n)}</td><td><input type="number" step="0.01" data-sat="${esc(n)}" data-f="m" value="${x.m??''}" style="width:70px"></td><td><input type="number" data-sat="${esc(n)}" data-f="n" value="${x.n??''}" style="width:80px"></td><td><input type="number" step="0.01" data-sat="${esc(n)}" data-f="sd" value="${x.sd??''}" style="width:70px"></td></tr>`}).join('')}
+    </tbody></table></div>
+    <div class="toolbar" style="margin-top:12px"><button class="btn pri" onclick="saveSurvey('${sem}','${esc(sc)}')">설문 결과 저장</button><span class="meta">저장 후 「입력 내용 내보내기」 파일에 함께 들어갑니다.</span></div></div>`;
+}
+function saveSurvey(sem, sc){
+  const num=v=>v===''||v==null?null:+v;
+  const items={}; document.querySelectorAll('[data-sv]').forEach(e=>{const k=e.dataset.sv;(items[k]=items[k]||{})[e.dataset.f]=num(e.value)});
+  Object.keys(items).forEach(k=>{const x=items[k]; if(x.pre==null&&x.post==null) delete items[k]; else x.diff=x.pre!=null&&x.post!=null?+(x.post-x.pre).toFixed(2):null});
+  const sat={}; document.querySelectorAll('[data-sat]').forEach(e=>{const k=e.dataset.sat;(sat[k]=sat[k]||{})[e.dataset.f]=num(e.value)});
+  Object.keys(sat).forEach(k=>{if(sat[k].m==null) delete sat[k]});
+  const block={N:num(document.getElementById('svN').value),items,sat};
+  const m=LS.get('meta',{}); const cur=JSON.parse(JSON.stringify(survey(sem)||{}));
+  if(sc==='전체') cur.all={...(cur.all||{}),...block}; else {cur.univ=cur.univ||{}; cur.univ[sc]={...(cur.univ[sc]||{}),...block};}
+  m[sem]={...(m[sem]||{}),survey:cur}; if(LS.set('meta',m)){loadDB();toast('설문 결과를 저장했습니다 · 보고서에 바로 반영됩니다')}
+}
 VIEWS.input = () => {
   const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
   const m = DB.meta[sem]||{}; const info = m.info||{};
@@ -549,17 +579,26 @@ VIEWS.input = () => {
     </tbody></table></div>
     <div class="toolbar" style="margin-top:12px"><button class="btn pri" onclick="saveInput('${sem}')">저장</button>
       <button class="btn" onclick="download('meta.json',JSON.stringify({meta:LS.get('meta',{})},null,1),'application/json')">입력 내용 내보내기 (meta.json)</button>
-      <button class="btn" onclick="go('devrep')">개발보고서 보기</button><button class="btn" onclick="go('comprep')">완료보고서 보기</button></div></div>`;
+      <button class="btn" onclick="go('devrep')">개발보고서 보기</button><button class="btn" onclick="go('comprep')">완료보고서 보기</button></div></div>`+surveyEditor(sem);
 };
 function saveInput(sem){
   const info={}; document.querySelectorAll('[data-k]').forEach(e=>info[e.dataset.k]=e.value.trim());
   const courses=[...document.querySelectorAll('tr[data-course]')].map(tr=>{const g=f=>tr.querySelector(`[data-f="${f}"]`).value;return {k:tr.dataset.course,lead:g('lead').trim(),ban:+g('ban')||1,fee:+g('fee')||0,dev:+g('dev')||0,rep:+g('rep')||0,weeks:g('weeks').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=14)}});
-  const m=LS.get('meta',{}); m[sem]={info,courses}; if(LS.set('meta',m)){loadDB();toast('저장했습니다 · 보고서에 바로 반영됩니다')}
+  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),info,courses}; if(LS.set('meta',m)){loadDB();toast('저장했습니다 · 보고서에 바로 반영됩니다')}
 }
 
 /* --- 보고서 엔진: sections 배열 → 화면/MD/HTML 동시 생성 --- */
 function md2table(cols,data){return `| ${cols.map(c=>c.t).join(' | ')} |\n|${cols.map(c=>c.n?'---:':'---').join('|')}|\n`+data.map(r=>`| ${cols.map(c=>c.raw?c.raw(r):fmt(r[c.k])).join(' | ')} |`).join('\n')}
+/* 조사 자동 선택: '디지털역량이(가)' → '디지털역량이' / '사이버 폭력(-0.51)이(가)' → '사이버 폭력(-0.51)이' */
+function fixJosa(s){
+  return String(s).replace(/([가-힣A-Za-z0-9%]+)((?:\([^()]*\))?)(이\(가\)|은\(는\)|을\(를\)|과\(와\))/g,(m,w,par,j)=>{
+    const c=w.charCodeAt(w.length-1); let bat;
+    if(c>=0xAC00&&c<=0xD7A3) bat=(c-0xAC00)%28!==0; else bat=/[013678LMNR]$/i.test(w);
+    const [a,b]=j.replace(')','').split('('); return w+par+(bat?a:b);
+  });
+}
 function reportShell(r){ // r:{eyebrow,title,sub,lead,ck:[[v,l]],sections:[{t,html,md}]}
+  r.sections=r.sections.map(s=>({...s,html:fixJosa(s.html),md:fixJosa(s.md)}));
   window._rep=r;
   return `<div class="rep"><nav class="toc"><b style="font-size:13px">목차</b>${r.sections.map((s,i)=>`<a href="#sec${i}" onclick="document.getElementById('sec${i}').scrollIntoView({behavior:'smooth'});return false"><small>${String(i+1).padStart(2,'0')}</small>${s.t}</a>`).join('')}</nav>
   <div class="paper"><div class="cover"><div class="eb">${r.eyebrow}</div><div class="rule"></div><h1>${r.title}</h1><div class="sub">${r.sub}</div><p>${r.lead}</p>
@@ -598,46 +637,216 @@ VIEWS.devrep = () => {
     ]});
 };
 
+/* ===== 완료보고서 엔진 (2025-2·2026-1 샘플 보고서 구조) =====
+   1 서론 · 2 연구 설계 및 방법 · 3 결과 및 분석(디지털 역량/수업만족도/이수율 + 추가 분석) · 4 총평 및 제안 */
+const SV_KA  = ['디지털 관련 지식','디지털 관련 태도'];
+const SV_DOM = ['디지털시민윤리','디지털에티켓','디지털역량','디지털규범'];
+const SV_GRP = [['디지털시민윤리',['디지털 시민정체성','디지털 시민가치관','사회참여의식','자기관리']],
+                ['디지털에티켓',['도덕적가치와 의무','사이버에티켓','개인정보 보호','커뮤니케이션']],
+                ['디지털역량',['정보의 생산과 소비','비판적 사고','디지털능력','디지털 활용']],
+                ['디지털규범',['법제도 인식','디지털 권리','사이버 범죄','사이버 폭력']]];
+const SV_SUB = SV_GRP.flatMap(g=>g[1]);
+const SV_SAT = ['수업 주제와 내용','관련 분야 역량 향상지원','공유 LMS 활용 수업','추천 및 참여의향'];
+const f2 = v => v==null||v===''||isNaN(v) ? '–' : (+v).toFixed(2);
+const sgn = v => v==null||isNaN(v) ? '–' : ((+v)>0?'+':'')+(+v).toFixed(2);
+function tcrit(z,df){ if(!df||df<1) df=1000; return z+(z**3+z)/(4*df)+(5*z**5+16*z**3+3*z)/(96*df*df); }
+function stars(t,N){ if(t==null||isNaN(t)) return ''; const a=Math.abs(t), df=(N||1000)-1;
+  return a>=tcrit(3.291,df)?'***':a>=tcrit(2.576,df)?'**':a>=tcrit(1.96,df)?'*':''; }
+const pTxt = s => s==='***'?'p<.001':s==='**'?'p<.01':s==='*'?'p<.05':'n.s.';
+const dOf = x => x ? (x.diff!=null ? +x.diff : (x.post!=null&&x.pre!=null ? +(x.post-x.pre).toFixed(2) : null)) : null;
+function survey(sem){ return (DB.meta[sem]||{}).survey || null; }
+function svScope(sem, univ){ const s=survey(sem); if(!s) return null; return univ ? (s.univ||{})[univ]||null : s.all||null; }
+const rateTxt = r => r>=80 ? '상회하는 우수한 수준' : r>=70 ? '부합하는 양호한 수준' : '다소 밑도는 수준';
+const rateCmp = r => `비교해 ${rateTxt(r)}`;
+
+/* 표: 전체(사전 M·SD / 사후 M·SD / 증감 / t) 또는 대학(우리대학 vs 전체) */
+function svTable(names, U, A, N, NA){
+  const row = (n,x) => x ? `<td class="n">${f2(x.pre)}</td>${U?'':`<td class="n">${f2(x.preSD)}</td>`}<td class="n">${f2(x.post)}</td>${U?'':`<td class="n">${f2(x.postSD)}</td>`}<td class="n">${sgn(dOf(x))}</td><td class="n">${x.t==null?'–':f2(x.t)+stars(x.t,n)}</td>` : `<td colspan="${U?4:6}" class="empty">–</td>`;
+  const head = U ? `<tr><th rowspan="2">구분</th><th colspan="4">우리대학</th><th colspan="4">전체 참여대학</th></tr><tr><th class="n">사전</th><th class="n">사후</th><th class="n">증감</th><th class="n">t</th><th class="n">사전</th><th class="n">사후</th><th class="n">증감</th><th class="n">t</th></tr>`
+                 : `<tr><th rowspan="2">구분</th><th colspan="2">사전(A)</th><th colspan="2">사후(B)</th><th rowspan="2" class="n">증감(B-A)</th><th rowspan="2" class="n">t</th></tr><tr><th class="n">M</th><th class="n">SD</th><th class="n">M</th><th class="n">SD</th></tr>`;
+  const body = names.map(n=>`<tr><td>${esc(n)}</td>${U ? row(N,U[n])+row(NA,A&&A[n]) : row(NA,A&&A[n])}</tr>`).join('');
+  return `<div class="tw"><table>${head.replace('<tr>','<thead><tr>').replace(/<\/tr>(?![\s\S]*<\/tr>)/,'</tr></thead>')}<tbody>${body}</tbody></table></div><p class="meta">*p&lt;.05, **p&lt;.01, ***p&lt;.001 (유의확률은 t값과 응답자 수로 계산)</p>`;
+}
+function svMd(names, U, A){
+  const r=(x)=>x?`${f2(x.pre)} | ${f2(x.post)} | ${sgn(dOf(x))} | ${x.t==null?'–':f2(x.t)}`:'– | – | – | –';
+  return (U?`| 구분 | 우리대학 사전 | 사후 | 증감 | t | 전체 사전 | 사후 | 증감 | t |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|\n`:`| 구분 | 사전 | 사후 | 증감 | t |\n|---|---:|---:|---:|---:|\n`)
+    + names.map(n=>`| ${n} | ${U?r(U[n])+' | ':''}${r(A&&A[n])} |`).join('\n');
+}
+/* 서술 자동 생성 */
+function itemSentence(n, x, N, A){
+  if(!x) return '';
+  const d=dOf(x), s=stars(x.t,N), up=d>0, sig=!!s;
+  let t=`${n}은(는) 사전 평균 ${f2(x.pre)}점에서 사후 평균 ${f2(x.post)}점으로 ${Math.abs(d).toFixed(2)}점 ${up?'상승':d<0?'하락':'변화'}하였으며`;
+  t += x.t==null ? ' 소표본으로 유의성 검정은 제시하지 않았다' : sig ? `(t=${f2(x.t)}, ${pTxt(s)}) 통계적으로 유의미한 ${up?'향상을':'변화를'} 보였다` : `(t=${f2(x.t)}) 통계적 유의성은 확보하지 못했다`;
+  if(A&&A[n]){ const da=dOf(A[n]); if(da!=null) t+=`. 전체 참여대학 증감(${sgn(da)})과 비교하면 ${d>da?`${(d-da).toFixed(2)}점 더 큰 향상`:d<da?`${(da-d).toFixed(2)}점 작은 변화`:'같은 수준'}이다`; }
+  return t+'.';
+}
+function rankText(names, X, N){
+  const l=names.filter(n=>X[n]).map(n=>({n,d:dOf(X[n]),s:stars(X[n].t,N),t:X[n].t,pre:X[n].pre}));
+  if(!l.length) return {l, txt:''};
+  const by=[...l].sort((a,b)=>b.d-a.d);
+  return {l, by, txt:`${by.map(x=>`${x.n}(${sgn(x.d)})`).join(', ')} 순으로 변화가 나타났다.`};
+}
+function digitalSection(sem, univ){
+  const S0=svScope(sem,univ), SA=svScope(sem,null);
+  if(!S0||!S0.items||!Object.keys(S0.items).length)
+    return {html:`<p class="empty">${semLabel(sem)} ${univ||''} 디지털 역량 사전·사후 검사 결과가 없습니다.${isPub()?'':' 기본자료 입력 → 「설문 결과」에서 입력하면 표와 해설이 자동으로 만들어집니다.'}</p>`, md:'_(설문 결과 없음)_', sum:null};
+  const N=S0.N, NA=SA&&SA.N, X=S0.items, A=univ?(SA&&SA.items):null;
+  const U=univ?X:null, AA=univ?A:X;
+  // 가. 지식과 태도
+  let h=`<h3>가. 디지털 지식과 태도 ${N?`<span class="meta">(N=${fmt(N)})</span>`:''}</h3>`+svTable(SV_KA,U,AA,N,univ?NA:N)
+    +`<p>${SV_KA.map(n=>itemSentence(n,X[n],N,A)).join(' ')}</p>`;
+  const ka=SV_KA.filter(n=>X[n]); if(ka.length===2){const [a,b]=ka.map(n=>dOf(X[n])); h+=`<p>두 영역을 비교하면 ${a>=b?'지식':'태도'}의 증감폭(${sgn(Math.max(a,b))})이 ${a>=b?'태도':'지식'}(${sgn(Math.min(a,b))})보다 크게 나타났다. ${a>=b?'지식 습득이 비교적 단기간에 뚜렷한 변화를 보이는 반면, 태도 변화는 점진적이고 장기적인 과정이 필요함을 시사한다.':'디지털 환경에 대한 태도·인식 변화가 지식 습득보다 앞서 나타난 점이 특징적이다.'}</p>`;}
+  // 나. 4대 영역
+  const rk=rankText(SV_DOM,X,N);
+  h+=`<h3>나. 디지털 역량 (4대 영역)</h3>`+svTable(SV_DOM,U,AA,N,univ?NA:N)+`<p>${SV_DOM.map(n=>itemSentence(n,X[n],N,A)).join(' ')}</p>`;
+  if(rk.by){const top=rk.by[0], low=rk.by[rk.by.length-1];
+    h+=`<p>전체적으로 ${rk.txt} ${top.n}이(가) 가장 큰 향상을 보였고, ${low.n}은(는) 가장 작은 변화에 그쳤다.${low.pre>=3.5?` ${low.n}의 사전 평균이 ${f2(low.pre)}점으로 높은 수준에서 출발해 추가 향상의 여지가 제한적이었던 천장효과(ceiling effect)의 영향으로 해석할 수 있다.`:''}</p>`;}
+  // 다. 하위역량 16개
+  const sub=SV_SUB.filter(n=>X[n]).map(n=>({n,d:dOf(X[n]),s:stars(X[n].t,N),pre:X[n].pre,t:X[n].t}));
+  const sigUp=sub.filter(x=>x.s&&x.d>0), sigDn=sub.filter(x=>x.s&&x.d<0), ns=sub.filter(x=>!x.s);
+  const top5=[...sub].sort((a,b)=>b.d-a.d).slice(0,5);
+  h+=`<h3>다. 디지털 하위역량 (16개 세부 항목)</h3>`+svTable(SV_SUB,U,AA,N,univ?NA:N)
+    +`<p>${sub.length}개 세부 항목 중 ${sigUp.length+sigDn.length}개에서 통계적으로 유의미한 변화가 나타났으며, 이 중 ${sigUp.length}개는 유의미한 향상${sigDn.length?`, ${sigDn.length}개는 유의미한 감소`:''}를 보였다.${ns.length?` 나머지 ${ns.length}개 항목(${ns.map(x=>x.n).join(', ')})은 통계적 유의성을 확보하지 못했다.`:''}</p>`
+    + SV_GRP.map(([g,items])=>{const l=items.filter(n=>X[n]); if(!l.length) return ''; const b=[...l].sort((a,c)=>dOf(X[c])-dOf(X[a]))[0];
+        return `<p><b>${g}</b> 영역에서는 ${b}이(가) ${f2(X[b].pre)}점에서 ${f2(X[b].post)}점으로 ${sgn(dOf(X[b]))}점 변화하며 가장 큰 향상을 보였다. ${l.filter(n=>n!==b).map(n=>`${n}(${f2(X[n].pre)}→${f2(X[n].post)}, ${sgn(dOf(X[n]))}${stars(X[n].t,N)})`).join(', ')}.</p>`}).join('')
+    + `<p>결론적으로 ${top5.map(x=>`${x.n}(${sgn(x.d)})`).join(', ')} 순으로 큰 증가폭을 보였다.${sigDn.length?` 유의미하게 감소한 ${sigDn.map(x=>`${x.n}(${sgn(x.d)})`).join(', ')}은(는) 프로그램 참여 후 기존 인식에 대한 비판적 성찰이나 더 엄격한 판단 기준이 형성되었을 가능성을 시사하며, 추가적인 원인 분석이 필요하다.`:''}${ns.filter(x=>x.pre>=3.6).length?` 유의성을 확보하지 못한 ${ns.filter(x=>x.pre>=3.6).map(x=>x.n).join(', ')}은(는) 사전 점수가 이미 3.6점 이상으로 높아 천장효과의 영향을 받은 것으로 보인다.`:''}</p>`;
+  const md=`### 가. 디지털 지식과 태도\n${svMd(SV_KA,U,AA)}\n\n### 나. 디지털 역량\n${svMd(SV_DOM,U,AA)}\n\n### 다. 디지털 하위역량\n${svMd(SV_SUB,U,AA)}`;
+  return {html:h, md, sum:{N, dom:rk.by, top5, sigUp, sigDn, ns, nsub:sub.length, ka:SV_KA.map(n=>X[n]&&{n,d:dOf(X[n]),s:stars(X[n].t,N)}).filter(Boolean)}};
+}
+function satSection(sem, univ){
+  const S0=svScope(sem,univ), SA=svScope(sem,null);
+  if(!S0||!S0.sat||!Object.keys(S0.sat).length) return {html:`<p class="empty">${semLabel(sem)} ${univ||''} 수업만족도 조사 결과가 없습니다.${isPub()?'':' 기본자료 입력 → 「설문 결과」에서 입력하세요.'}</p>`, md:'_(만족도 결과 없음)_', sum:null};
+  const X=S0.sat, A=univ&&SA?SA.sat:null;
+  const tot = X['총합']&&X['총합'].m!=null ? +X['총합'].m : +(SV_SAT.filter(n=>X[n]).reduce((s,n)=>s+(+X[n].m),0)/Math.max(1,SV_SAT.filter(n=>X[n]).length)).toFixed(2);
+  const totA = A ? (A['총합']&&A['총합'].m!=null ? +A['총합'].m : null) : null;
+  const names=[...SV_SAT,'총합'];
+  const cell=x=>x?`<td class="n">${f2(x.m)}</td><td class="n">${fmt(x.n)}</td><td class="n">${f2(x.sd)}</td>`:'<td colspan="3" class="empty">–</td>';
+  const h0=`<div class="tw"><table><thead><tr><th rowspan="2">구분</th><th colspan="3">${univ?'우리대학':'전체 참여대학'}</th>${A?'<th colspan="3">전체 참여대학</th>':''}</tr><tr><th class="n">평균</th><th class="n">N</th><th class="n">표준편차</th>${A?'<th class="n">평균</th><th class="n">N</th><th class="n">표준편차</th>':''}</tr></thead><tbody>`
+    + names.map(n=>{const x=n==='총합'&&!X[n]?{m:tot,n:(X[SV_SAT[0]]||{}).n,sd:null}:X[n];return `<tr><td>${n==='총합'?'<b>총합</b>':esc(n)}</td>${cell(x)}${A?cell(A[n]):''}</tr>`}).join('')+`</tbody></table></div>`;
+  const l=SV_SAT.filter(n=>X[n]).map(n=>({n,m:+X[n].m,sd:X[n].sd,a:A&&A[n]?+A[n].m:null})).sort((a,b)=>b.m-a.m);
+  const N=(X[SV_SAT[0]]||{}).n;
+  let p=`<p>수업만족도 조사에는 ${fmt(N)}명이 응답했다. 4개 항목 평균은 5점 만점에 ${f2(tot)}점(약 ${(tot/5*100).toFixed(1)}%)으로${totA!=null?` 전체 참여대학 평균 ${f2(totA)}점보다 ${Math.abs(tot-totA).toFixed(2)}점 ${tot>=totA?'높은':'낮은'} 수준이며,`:''} 전반적으로 ${tot>=4.5?'매우 높은':tot>=4?'양호한':'보통 수준의'} 만족도를 기록했다.</p>`;
+  if(l.length){p+=`<p>항목별로는 ${l.map(x=>`${x.n}(${f2(x.m)}${x.a!=null?`, 전체 대비 ${sgn(x.m-x.a)}`:''})`).join(', ')} 순으로 나타났다. ${l[0].n}이(가) 가장 높았고, ${l[l.length-1].n}이(가) 상대적으로 낮았다.${l[l.length-1].n.includes('LMS')?' 이는 대학별 LMS 환경 차이와 플랫폼 사용법 안내 부족이 영향을 주었을 가능성을 시사하며, 다음 학기 우선 개선 지점이다.':''}${l.some(x=>x.n.includes('추천')&&x===l[0])?' 추천 및 참여의향이 가장 높다는 점은 재참여·추천 의사가 세부 만족도보다 앞선다는 의미로, 프로그램 확산 가능성을 뒷받침한다.':''}</p>`;}
+  return {html:h0+p, md:`| 구분 | 평균 | N | 표준편차 |\n|---|---:|---:|---:|\n`+names.map(n=>X[n]?`| ${n} | ${f2(X[n].m)} | ${fmt(X[n].n)} | ${f2(X[n].sd)} |`:'').filter(Boolean).join('\n'), sum:{tot,totA,l,N}};
+}
+function compSection(rs, rsAll, sem, univ){
+  const g=r=>r.c!=='수강중'; const st=stat(rs), sa=stat(rsAll);
+  const ap=rs.filter(g).length, dn=st.done, rate=ap?+(dn/ap*100).toFixed(2):0;
+  const apA=rsAll.filter(g).length, rateA=apA?+(sa.done/apA*100).toFixed(2):0;
+  if(!ap) return {html:`<p class="empty">${semLabel(sem)}은 아직 성적이 반영되지 않아 이수율을 계산할 수 없습니다 (수강중 ${fmt(st.ing)}건).</p>`, md:'_(성적 미반영)_', sum:null};
+  let h=`<div class="tw"><table><thead><tr><th rowspan="2">구분</th><th colspan="3">${univ?'우리대학':'전체 참여대학'}</th>${univ?'<th colspan="3">전체 참여대학</th>':''}</tr><tr><th class="n">신청자</th><th class="n">이수자</th><th class="n">이수율(%)</th>${univ?'<th class="n">신청자</th><th class="n">이수자</th><th class="n">이수율(%)</th>':''}</tr></thead>
+    <tbody><tr><td>이수율</td><td class="n">${fmt(ap)}</td><td class="n">${fmt(dn)}</td><td class="n"><b>${rate.toFixed(2)}</b></td>${univ?`<td class="n">${fmt(apA)}</td><td class="n">${fmt(sa.done)}</td><td class="n">${rateA.toFixed(2)}</td>`:''}</tr></tbody></table></div>
+    <p class="meta">※ 수강 자료(교과목별 수강 건수) 기준. 청강생 포함 여부나 과제 제출에 따른 수료 판단 기준에 따라 설문 집계와 차이가 있을 수 있습니다.</p>`;
+  // 운영형태별
+  const byG=['교과','비교과'].map(gg=>{const x=rs.filter(r=>r.g===gg&&g(r));return {gg,ap:x.length,dn:x.filter(r=>r.c==='수료').length}}).filter(x=>x.ap);
+  if(byG.length>1) h+=`<h3>운영형태별 이수율</h3>`+table([{t:'구분',k:'gg',f:r=>r.gg==='교과'?'정규 교과목 운영':'비교과 프로그램 운영'},{t:'신청자',k:'ap',n:1},{t:'이수자',k:'dn',n:1},{t:'이수율(%)',k:'r',n:1}],byG.map(x=>({...x,r:(x.dn/x.ap*100).toFixed(2)})));
+  let p=`<p>${univ?`${univ}의`:'프로그램 전체'} 이수율은 ${rate.toFixed(2)}%로, 신청자 ${fmt(ap)}건 중 ${fmt(dn)}건이 이수 조건을 충족했다.${univ?` 이는 전체 참여대학 평균 ${rateA.toFixed(2)}%보다 ${Math.abs(rate-rateA).toFixed(2)}%p ${rate>=rateA?'높은':'낮은'} 수준이다.`:''} 일반적으로 온라인 공개강좌(MOOC)의 이수율이 10% 내외에 그치고 다수의 대학 간 공유학점 프로그램이 70~80% 수준에 머무르는 것과 비교하면, ${univ?'본 대학':'본 프로그램'}의 ${rate.toFixed(2)}%는 이 범위와 ${rateCmp(rate)}이다.</p>`;
+  let extra='';
+  if(!univ){
+    const byU=[...groupBy(rs.filter(g),'u')].map(([u,v])=>({u,ap:v.length,dn:v.filter(r=>r.c==='수료').length})).map(x=>({...x,r:+(x.dn/x.ap*100).toFixed(1)})).sort((a,b)=>b.r-a.r);
+    extra=`<h3>대학별 이수율</h3>`+table([{t:'대학명',k:'u'},{t:'신청자',k:'ap',n:1},{t:'이수자',k:'dn',n:1},{t:'이수율(%)',k:'r',n:1}],byU);
+    if(byU.length>1){const hi=byU[0],lo=byU[byU.length-1]; p+=`<p>참여 대학별로는 ${hi.u}(${hi.r}%)가 가장 높고 ${lo.u}(${lo.r}%)가 가장 낮아 ${(hi.r-lo.r).toFixed(1)}%p의 편차가 확인된다. 동일한 표준 콘텐츠와 공유 플랫폼을 활용했음에도 개별 대학의 학습관리 체계 운영 수준이 이수율에 영향을 미치는 핵심 변수임을 보여준다. 이수율이 높은 대학의 운영 노하우(밀착형 학습 모니터링, 조기 개입 체계 등)를 컨소시엄 우수 사례로 공유할 필요가 있다.</p>`; }
+    return {html:h+p+extra, md:`| 구분 | 신청자 | 이수자 | 이수율 |\n|---|---:|---:|---:|\n| 이수율 | ${ap} | ${dn} | ${rate.toFixed(2)} |\n\n`+md2table([{t:'대학명',k:'u'},{t:'신청자',k:'ap'},{t:'이수자',k:'dn'},{t:'이수율(%)',k:'r'}],byU), sum:{rate,rateA,ap,dn,byU}};
+  }
+  return {html:h+p, md:`| 구분 | 우리대학 신청 | 이수 | 이수율 | 전체 신청 | 이수 | 이수율 |\n|---|---:|---:|---:|---:|---:|---:|\n| 이수율 | ${ap} | ${dn} | ${rate.toFixed(2)} | ${apA} | ${sa.done} | ${rateA.toFixed(2)} |`, sum:{rate,rateA,ap,dn}};
+}
+const STD = {
+  intro1: n=>`AI 디지털 컨소시엄 공유학점 프로그램은 전문대학들이 협력하여 개발한 공동 플랫폼을 통해 운영되는 프로그램이다. 전문대학 간 협력으로 개발된 교양 교육 콘텐츠를 공유하고 학습자들에게 새로운 학습 경험을 제공하기 위해 설계되었으며, 이번 학기에는 총 ${n}개 교과목이 운영되었다. 각 과목은 학습자들의 디지털 리터러시와 자기주도적 학습 능력 강화를 목표로 한다.`,
+  intro1b: `특히 이 프로그램은 참여 대학 학생들에게 소속 대학의 제약을 넘어 전국적인 학습 기회를 제공한다는 점에서 의의가 있다. 모든 학생은 공동 플랫폼을 통해 자유롭게 과목을 신청·수강할 수 있으며, 학습 전후의 역량 변화를 평가하기 위해 사전·사후 디지털 리터러시 검사를 도입하였다. 또한 신청자 대비 이수율과 학습 결과 데이터를 수집하여 학습 참여도와 성취도를 측정하였다.`,
+  purpose: [['디지털 학습 환경 혁신','공동 LMS를 활용하여 시간과 공간의 제약이 없는 디지털 교육 경험과 자기주도적 학습 기회를 제공한다.'],
+    ['전문대학 간 교육 자원 공유','전문대학이 협력하여 교양 교육 콘텐츠를 개발·공유함으로써 각 대학의 자원을 효과적으로 활용한다.'],
+    ['학습자의 디지털 역량 강화','사전·사후 디지털 역량 검사를 통해 디지털 기술 활용, 정보 처리, 문제 해결, 협력적 소통 능력을 향상시킨다.'],
+    ['자기주도적 학습 역량 증진','학생들이 스스로 학습을 계획하고 실행하는 능력을 배양하여 독립적인 학습 습관을 형성한다.'],
+    ['전국 단위의 학습 기회 제공','전문대학 학생이라면 누구나 공유 플랫폼을 통해 양질의 교양 과목을 수강할 수 있도록 하여 학습 기회의 평등을 실현한다.'],
+    ['ESG 경영과 디지털 전환 대응','지속 가능한 디지털 교육 환경을 조성하고 혁신적인 교육 플랫폼 운영 사례를 창출한다.']],
+  need: [['디지털 교육 경쟁력 강화','학습자의 디지털 역량 변화와 학습 성과를 구체적으로 확인하여 강점을 강화하고 약점을 보완하는 전략을 수립한다.'],
+    ['학생 중심 교육 혁신 촉진','이수율과 역량 증가율 등을 분석하여 학생들이 더 높은 성과를 내는 학습 환경을 파악한다.'],
+    ['대학 간 협력과 자원 공유 확대','분석 결과를 공유하여 각 대학의 성공 사례와 개선 과제를 명확히 한다.'],
+    ['학습자 만족도와 신뢰도 증대','프로그램의 효과를 학습자와 대학 구성원에게 제시하는 증거 자료가 된다.'],
+    ['정책적 지원과 추가 자원 확보','교육부·지역사회·산업체에 디지털 교육 효과를 설득력 있게 전달하는 근거가 된다.'],
+    ['디지털 교육 생태계 조성','공동 LMS 활용 교육의 효과를 검증하여 지역사회·산업체와 협력하는 디지털 교육 생태계를 구축한다.']],
+  design: `프로그램 설계 전 컨소시엄 참여 대학의 의견을 수집하여 각 대학의 교육 목표와 학습자 요구를 반영하였다. 수집된 의견을 바탕으로 학습자에게 필요한 역량을 강화하도록 핵심 요소를 설계하고, 분야별 전문가와 협력하여 학습 내용의 깊이와 폭을 결정하였다. 해당 분야 교수진이 참여하여 학습 목표에 맞는 교육 자료와 평가 방식을 마련하였으며, 멘토를 배치하여 수강 중 발생하는 문제를 해결하고 학습을 지원하였다. 운영 중에는 학습자 피드백을 정기적으로 수집하여 개선점을 반영하였다.`,
+  future: [['프로그램 확대 및 교과목 영역 다양화','AI·디지털 분야뿐 아니라 데이터 분석, 사이버보안, 디지털 마케팅, 스마트 제조 등 핵심 분야로 교과목을 확대하고, 간호·디자인·관광 등 전공 연계형 디지털 교육과정을 개발한다.'],
+    ['컨소시엄 성공 모델의 전국 단위 확산','지역별·분야별 컨소시엄을 구성하고 이수율 상위 대학의 운영 노하우를 우수 사례 발표회·워크숍으로 공유하며, 대학 간 학점 인정 절차를 간소화한다.'],
+    ['데이터 기반 교육 품질 관리 체계 고도화','학습자 행동 패턴·성취도·만족도 추이를 모니터링하고 코호트 분석과 장기 추적 연구로 프로그램의 사회·경제적 가치를 입증한다.'],
+    ['디지털 교육 격차 해소와 ESG 실천','소외 계층 학습자 지원, 디지털 기기 대여, 지역 주민 공개 강좌 등을 단계적으로 확대하고 디지털 윤리·지속가능 발전 교육을 통합한다.'],
+    ['마이크로디그리·디지털배지 연계 강화','4개 마이크로디그리 과정의 단계적 이수(기초→심화)를 안내하고, 2과목 이수자를 대상으로 잔여 과목 수강을 독려하여 디지털배지 발급을 확대한다.']],
+};
 function completionSections(rs, sem, info, univ){
-  const st=stat(rs);
-  const byK=[...groupBy(rs,'k')].map(([k,v],i)=>{const s=stat(v);return {cat:cinfo(k).cat,k,n:s.n,d:s.done,f:s.fail,r:s.rate+'%',avg:s.avg??'–'}}).sort((a,b)=>byCourse(a.k,b.k)).map((x,i)=>({i:i+1,...x}));
-  const byU=[...groupBy(rs,'u')].map(([u,v])=>{const s=stat(v);return {u,n:s.n,p:s.people,d:s.done,f:s.fail,r:s.rate+'%'}}).sort((a,b)=>b.n-a.n);
+  const st=stat(rs), rsAll=DB.records.filter(r=>r.s===sem), sa=stat(rsAll);
+  const who=univ||'참여 대학 전체';
+  const dg=digitalSection(sem,univ), sat=satSection(sem,univ), cp=compSection(rs,rsAll,sem,univ);
+  const byK=[...groupBy(rs,'k')].map(([k,v])=>{const s=stat(v);return {cat:cinfo(k).cat,k,n:s.n,d:s.done,f:s.fail,r:s.done+s.fail?s.rate+'%':'–',avg:s.avg??'–'}}).sort((a,b)=>byCourse(a.k,b.k)).map((x,i)=>({i:i+1,...x}));
   const kc=[{t:'No',k:'i',n:1},{t:'구분',k:'cat'},{t:'교과목명',k:'k'},{t:'수강',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'미수료',k:'f',n:1},{t:'수료율',k:'r',n:1},{t:'평균 총점',k:'avg',n:1}];
-  const uc=[{t:'대학명',k:'u'},{t:'수강 건수',k:'n',n:1},{t:'학생 수',k:'p',n:1},{t:'수료',k:'d',n:1},{t:'미수료',k:'f',n:1},{t:'수료율',k:'r',n:1}];
+  const byCat=CATS.map(c=>c.cat).map(cat=>{const v=rs.filter(r=>cinfo(r.k).cat===cat);const s=stat(v);return {cat,k:uniq(v.map(r=>r.k)).length,n:s.n,d:s.done,r:s.done+s.fail?s.rate+'%':'–'}}).filter(x=>x.n);
   const bd=badges(sem); const bdRows=MICRO.map(m=>{const l=bd[m.id].filter(x=>!univ||x.u===univ);return {m:m.name,k:m.courses.length,n:l.filter(x=>x.cnt>=3).length,c:l.filter(x=>x.cnt===2).length}});
-  const bc=[{t:'마이크로디그리',k:'m'},{t:'해당 교과목 수',k:'k',n:1},{t:'3개 이상 수강(명)',k:'n',n:1},{t:'2개 수강(명)',k:'c',n:1}];
-  const best=byK.filter(x=>x.n>=10).sort((a,b)=>parseFloat(b.r)-parseFloat(a.r))[0], worst=byK.filter(x=>x.n>=10).sort((a,b)=>parseFloat(a.r)-parseFloat(b.r))[0];
-  const auto=`${semLabel(sem)} ${univ?univ+' ':''}공유학점은 ${st.univ}개 대학, ${st.course}개 교과목에서 총 ${fmt(st.n)}건(학생 ${fmt(st.people)}명)이 수강했고, ${fmt(st.done)}건이 수료하여 수료율은 ${st.rate}%입니다.`+(best?` 수료율이 가장 높은 교과목은 「${best.k}」(${best.r}), 가장 낮은 교과목은 「${worst.k}」(${worst.r})입니다.`:'');
+  const bc=[{t:'마이크로디그리',k:'m'},{t:'해당 교과목',k:'k',n:1},{t:'3개 이상 수강(명)',k:'n',n:1},{t:'2개 수강(명)',k:'c',n:1}];
   const fails=rs.filter(r=>r.c==='미수료');
-  const failReason=[['출석 미달',fails.filter(r=>r.a!=null&&r.a<(r.e!=null?16:40)).length],['과제 미제출(0점)',fails.filter(r=>r.h===0).length]];
+  const fr=[['출석 미달',fails.filter(r=>r.a!=null&&r.a<(r.e!=null?16:40)).length],['과제 미제출(0점)',fails.filter(r=>r.h===0).length],['시험 미응시(0점)',fails.filter(r=>r.e===0).length]];
+  const D=dg.sum, Sa=sat.sum, C=cp.sum;
+  // 한 장 요약
+  const sumTxt=[`${semLabel(sem)} ${univ?univ+' ':''}공유학점 프로그램은 ${univ?'':`${st.univ}개 대학, `}${st.course}개 교과목에서 총 ${fmt(st.n)}건(학생 ${fmt(st.people)}명)이 수강했다.`,
+    C?`이수율은 ${C.rate.toFixed(2)}%${univ?`(전체 ${C.rateA.toFixed(2)}%)`:''}이다.`:'', D&&D.dom?`디지털 역량은 ${D.dom.filter(x=>x.s&&x.d>0).length}/${D.dom.length}개 영역에서 유의미하게 향상되었고, ${D.dom[0].n}(${sgn(D.dom[0].d)})의 향상폭이 가장 컸다.`:'',
+    Sa?`수업만족도는 5점 만점에 ${f2(Sa.tot)}점(${(Sa.tot/5*100).toFixed(1)}%)이다.`:''].filter(Boolean).join(' ');
+  // 총평
+  const ach=[];
+  if(D&&D.dom) ach.push(['디지털 역량의 유의미한 향상',`디지털 지식·태도와 4대 영역 중 ${D.dom.filter(x=>x.s&&x.d>0).length}개 영역에서 통계적으로 유의미한 향상이 확인되었다. 특히 ${D.dom[0].n}이(가) ${sgn(D.dom[0].d)}점으로 가장 크게 향상되었으며, 16개 세부 역량 중 ${D.sigUp.length+D.sigDn.length}개(${(D.nsub?((D.sigUp.length+D.sigDn.length)/D.nsub*100):0).toFixed(1)}%)에서 유의미한 변화가 나타났다.`]);
+  if(D&&D.top5) ach.push(['세부 역량의 두드러진 향상',`${D.top5.slice(0,3).map(x=>`${x.n}(${sgn(x.d)})`).join(', ')} 등에서 두드러진 향상이 나타났다. 이는 프로그램이 지식 전달을 넘어 실제 디지털 환경에서의 인식과 활용 역량 변화로 이어졌음을 보여준다.`]);
+  if(Sa) ach.push(['학습자 만족도의 안정성 확보',`수업만족도 ${f2(Sa.tot)}/5.0${Sa.totA!=null?`(전체 ${f2(Sa.totA)})`:''}은 프로그램의 기획·설계·실행 전 과정이 학습자들에게 긍정적으로 받아들여졌음을 보여준다. ${Sa.l[0]?`${Sa.l[0].n}(${f2(Sa.l[0].m)})이 가장 높게 나타났다.`:''}`]);
+  if(C) ach.push(['안정적인 이수율 확보',`이수율 ${C.rate.toFixed(2)}%로, 다수의 대학 간 공유학점 프로그램 이수율(70~80%)과 ${rateCmp(C.rate)}을 기록했다.`]);
+  const md3=bdRows.reduce((s,x)=>s+x.n,0); if(md3||bdRows.some(x=>x.c)) ach.push(['마이크로디그리 이수 기반 마련',`${semLabel(sem)}까지 마이크로디그리 해당 교과목을 3개 이상 수강한 학생이 ${md3}명, 2개 수강한 학생이 ${bdRows.reduce((s,x)=>s+x.c,0)}명으로 디지털배지 발급 기반이 형성되었다.`]);
+  if(info.outcome) ach.push(['운영기관 의견',info.outcome]);
+  const imp=[];
+  if(D&&D.dom){const low=D.dom[D.dom.length-1]; imp.push([`${low.n} 영역의 심화 교육 전략`,`${low.n}은(는) 4대 영역 중 가장 작은 변화(${sgn(low.d)})에 그쳤다. 실제 사례 분석과 모의 상황 토론 등을 강화한 심화 콘텐츠 개발이 필요하다.`]);}
+  if(D&&D.sigDn.length) imp.push(['감소 항목에 대한 원인 분석',`${D.sigDn.map(x=>`${x.n}(${sgn(x.d)})`).join(', ')}이(가) 유의미하게 감소했다. 심층 인터뷰·포커스 그룹으로 원인을 확인하고 측정 도구의 타당성도 점검해야 한다.`]);
+  if(Sa&&Sa.l.length){const lo=Sa.l[Sa.l.length-1]; imp.push([`${lo.n} 만족도 개선`,`${lo.n}이(가) ${f2(lo.m)}점으로 만족도 항목 중 가장 낮았다.${lo.n.includes('LMS')?' 플랫폼 사용법 안내를 표준화하고 대학별 기술 지원 체계를 강화해야 한다.':' 해당 영역의 콘텐츠와 운영 방식을 점검할 필요가 있다.'}`]);}
+  if(C&&C.byU&&C.byU.length>1){const lo=C.byU.filter(x=>x.r<70); if(lo.length) imp.push(['이수율 편차 관리',`${lo.map(x=>`${x.u}(${x.r}%)`).join(', ')}의 이수율이 70%를 밑돌았다. 주차별 학습 진도 점검, 지연 학습자 조기 식별, 개별 독려 등 학습관리 체계를 강화하고 상위 대학의 운영 노하우를 공유해야 한다.`]);}
+  if(univ&&C&&C.rate<C.rateA) imp.push(['이수율 제고',`본 대학 이수율(${C.rate.toFixed(2)}%)이 전체 평균(${C.rateA.toFixed(2)}%)보다 낮다. 중도 이탈 학습자의 이탈 시점과 원인을 파악하는 학습관리 체계가 필요하다.`]);
+  if(fails.length){const top=[...fr].sort((a,b)=>b[1]-a[1])[0]; if(top[1]) imp.push(['미수료 예방',`미수료 ${fmt(fails.length)}건 중 ${top[0]}이(가) ${fmt(top[1])}건으로 가장 많았다. 해당 요인을 중심으로 중간 점검과 알림 체계를 마련해야 한다.`]);}
+  if(info.issue) imp.push(['운영상 문제점',info.issue]);
+  if(info.plan) imp.push(['차기 학기 개선 계획',info.plan]);
+  const li=(arr)=>arr.map(([h,b],i)=>`<p><b>${i+1}) ${esc(h)}</b><br>${esc(b)}</p>`).join('');
+  const lim=(arr)=>arr.map(([h,b],i)=>`${i+1}) **${h}** — ${b}`).join('\n');
+  const concl=`AI 디지털 공유학점 프로그램은 ${univ?`${univ}에서`:'이번 학기에도'} 전문대학 교육 혁신 모델로서의 효과를 확인시켰다.`+(D&&D.dom?` 디지털 역량 4대 영역 중 ${D.dom.filter(x=>x.s&&x.d>0).length}개 영역에서 유의미한 향상이 나타났고`:'')+(Sa?`, 수업만족도는 ${f2(Sa.tot)}점(${(Sa.tot/5*100).toFixed(1)}%)으로 학습자들의 전반적인 만족과 참여 의지를 확인했다`:'')+(C?`. 이수율은 ${C.rate.toFixed(2)}%를 기록했다`:'')+`. 앞으로 영역별 심화 교육, 플랫폼 사용성 개선, 수준별 학습 경로 설계, 대학 간 이수율 편차 해소를 체계적으로 추진한다면 전문대학 디지털 교육의 새로운 표준을 만들어 갈 수 있을 것이다.`;
   const secs=[
-    {t:'한 장 요약',html:`<p>${auto}</p>${kpis([[fmt(st.n),'수강'],[fmt(st.done),'수료'],[st.rate+'%','수료율'],[st.avg??'–','평균 총점']])}`,md:auto},
-    {t:'사업 개요',html:`<table><tr><th>사업명</th><td>${esc(info.title||'–')}</td></tr><tr><th>운영기간</th><td>${esc(info.period||'–')}</td></tr><tr><th>주관기관</th><td>${esc(info.org||'–')}</td></tr></table>${txt(info.goal)}`,md:`- 사업명: ${info.title||'–'}\n- 운영기간: ${info.period||'–'}\n\n${mdt(info.goal)}`},
-    {t:'교과목별 운영 결과',html:table(kc,byK),md:md2table(kc,byK)},
+    {t:'한 장 요약',html:`<p>${sumTxt}</p>${kpis([[fmt(st.n),'수강 건수'],[fmt(st.people),'학생 수'],[C?C.rate.toFixed(1)+'%':'–','이수율'],[Sa?f2(Sa.tot):'–','수업만족도'],[D&&D.dom?D.dom.filter(x=>x.s&&x.d>0).length+'/4':'–','역량 향상 영역']])}`,md:sumTxt},
+    {t:'서론',html:`<h3>1-1. AI 디지털 컨소시엄 공유학점 프로그램</h3><p>${STD.intro1(sa.course)}</p><p>${STD.intro1b}</p>${info.title||info.period||info.org?`<table><tr><th>사업명</th><td>${esc(info.title||'–')}</td></tr><tr><th>운영기간</th><td>${esc(info.period||'–')}</td></tr><tr><th>주관기관</th><td>${esc(info.org||'–')}</td></tr></table>`:''}
+      <h3>1-2. 프로그램의 목적과 배경</h3>${info.goal?`<p>${esc(info.goal)}</p>`:''}<ul>${STD.purpose.map(([a,b])=>`<li><b>${a}</b>: ${b}</li>`).join('')}</ul>
+      <h3>1-3. 운영 결과 분석의 필요성</h3><ol>${STD.need.map(([a,b])=>`<li><b>${a}</b> — ${b}</li>`).join('')}</ol>`,
+     md:`### 1-1. 프로그램 소개\n${STD.intro1(sa.course)}\n\n${STD.intro1b}\n\n### 1-2. 목적과 배경\n${STD.purpose.map(([a,b])=>`- **${a}**: ${b}`).join('\n')}\n\n### 1-3. 운영 결과 분석의 필요성\n${STD.need.map(([a,b],i)=>`${i+1}. **${a}** — ${b}`).join('\n')}`},
+    {t:'연구 설계 및 방법',html:`<h3>2-1. 프로그램 운영 설계</h3><p>${STD.design}</p>
+      <h3>2-2. 연구 도구 및 분석 방법</h3><p><b>1) 디지털 역량</b> — 이정재(2021)가 개발한 도구(총 70문항, 4개 하위 영역, 신뢰도 .80 이상)를 사전·사후에 실시하여 대응표본 t검정으로 변화를 분석하였다.</p>
+      ${table([{t:'구분',k:'a'},{t:'영역(문항 수)',k:'b'},{t:'세부 항목',k:'c'}],[{a:'태도',b:'디지털시민윤리 (19)',c:'디지털 시민정체성, 디지털 시민가치관, 사회참여의식, 자기관리'},{a:'태도',b:'디지털에티켓 (17)',c:'도덕적가치와 의무, 사이버에티켓, 개인정보 보호, 커뮤니케이션'},{a:'지식',b:'디지털역량 (18)',c:'정보의 생산과 소비, 비판적 사고, 디지털능력, 디지털 활용'},{a:'지식',b:'디지털규범 (16)',c:'법제도 인식, 디지털 권리, 사이버 범죄, 사이버 폭력'}])}
+      <p><b>2) 수업 만족도</b> — 수업 주제와 내용, 관련 분야 역량 향상지원, 공유 LMS 활용 수업, 추천 및 참여의향의 4개 문항(5점 척도)으로 조사하였다.</p>
+      <p><b>3) 이수율</b> — 교과목별 수강 신청자 중 이수 조건(출석·과제·시험 기준 점수)을 충족한 학습자의 비율로 산출하였다.</p>`,
+     md:`${STD.design}\n\n- 디지털 역량: 이정재(2021) 도구 70문항, 사전·사후 대응표본 t검정\n- 수업 만족도: 4문항 5점 척도\n- 이수율: 수강 신청 대비 이수 비율`},
+    {t:'결과 ① 디지털 역량',html:dg.html,md:dg.md},
+    {t:'결과 ② 수업만족도',html:sat.html,md:sat.md},
+    {t:'결과 ③ 이수율',html:cp.html,md:cp.md},
+    {t:'결과 ④ 교과목별 운영 결과',html:table([{t:'과정',k:'cat'},{t:'교과목 수',k:'k',n:1},{t:'수강',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'수료율',k:'r',n:1}],byCat)+table(kc,byK),md:md2table(kc,byK)},
+    {t:'결과 ⑤ 마이크로디그리',html:table(bc,bdRows)+`<p class="meta">${semLabel(sem)}까지 누적, 수료+수강중 기준(미수료 제외). 3개 이상 수강자는 디지털배지 발급 대상, 2개 수강자는 잔여 과목 안내 대상이다.</p>`,md:md2table(bc,bdRows)},
+    {t:'결과 ⑥ 미수료 분석',html:fails.length?`<p>미수료 ${fmt(fails.length)}건의 주요 요인(중복 가능, 점수 기준 자동 추정): ${fr.map(([l,n])=>`${l} ${fmt(n)}건`).join(', ')}.</p>`:'<p>미수료 건이 없습니다.</p>',md:`미수료 ${fails.length}건 · `+fr.map(([l,n])=>`${l} ${n}건`).join(', ')},
+    {t:'총평 및 제안',html:`<p>${sumTxt}</p><h3>4-1. 주요 성과</h3>${li(ach)}<h3>4-2. 개선 및 발전 방향</h3>${imp.length?li(imp):'<p class="empty">–</p>'}<h3>4-3. 향후 발전 방향 및 확산 전략</h3>${li(STD.future)}<h3>4-4. 결론</h3><p>${concl}</p>`,
+     md:`### 4-1. 주요 성과\n${lim(ach)}\n\n### 4-2. 개선 및 발전 방향\n${lim(imp)}\n\n### 4-3. 향후 발전 방향\n${lim(STD.future)}\n\n### 4-4. 결론\n${concl}`},
   ];
-  if(!univ) secs.push({t:'대학별 운영 결과',html:table(uc,byU),md:md2table(uc,byU)});
-  secs.push(
-    {t:'마이크로디그리 · 디지털배지',html:table(bc,bdRows)+`<p class="meta">${semLabel(sem)}까지 누적, 수료+수강중 기준(미수료 제외).</p>`,md:md2table(bc,bdRows)},
-    {t:'미수료 분석',html:`<p>미수료 ${fmt(fails.length)}건 중 ${failReason.map(([l,n])=>`${l} ${fmt(n)}건`).join(', ')} (중복 가능, 자동 추정).</p>`,md:`미수료 ${fails.length}건 · `+failReason.map(([l,n])=>`${l} ${n}건`).join(', ')},
-    {t:'주요 성과',html:txt(info.outcome),md:mdt(info.outcome)},
-    {t:'문제점 및 개선 계획',html:`<h3>문제점</h3>${txt(info.issue)}<h3>개선 계획</h3>${txt(info.plan)}`,md:`### 문제점\n${mdt(info.issue)}\n\n### 개선 계획\n${mdt(info.plan)}`},
-  );
   if(univ){
     const sc=[{t:'이름',k:'n'},{t:'아이디',k:'id'},{t:'교과목명',k:'k'},{t:'출석',k:'a',n:1},{t:'과제',k:'h',n:1},{t:'시험',k:'e',n:1},{t:'총점',k:'t',n:1},{t:'수료여부',k:'c'}];
     const list=[...rs].sort((a,b)=>byCourse(a.k,b.k)||String(a.n).localeCompare(String(b.n)));
-    secs.push({t:'붙임: 수강생 명단',html:table(sc.map(c=>c.k==='c'?{...c,f:r=>statusPill(r.c)}:c),list),md:md2table(sc,list)});
+    secs.push({t:'부록: 수강생 명단',html:table(sc.map(c=>c.k==='c'?{...c,f:r=>statusPill(r.c)}:c),list),md:md2table(sc,list)});
   }
-  return {st,secs};
+  return {st,secs,C};
 }
+
 VIEWS.comprep = () => {
   const sem = S.sem==='ALL' ? DB.sems.filter(s=>DB.records.some(r=>r.s===s&&r.c!=='수강중')).pop() : S.sem;
   const info=(DB.meta[sem]||{}).info||{};
   const rs=DB.records.filter(r=>r.s===sem);
-  const {st,secs}=completionSections(rs,sem,info,null);
+  const {st,secs,C}=completionSections(rs,sem,info,null);
   const warn = st.ing>0&&st.done+st.fail===0 ? `<div class="hint">${semLabel(sem)}은 아직 성적이 들어오지 않았습니다(수강중 ${fmt(st.ing)}건). ${isPub()?'성적이 반영되면 완료보고서가 채워집니다.':'「자료 들여오기」에서 성적 파일을 올리면 완료보고서가 채워집니다.'}</div>`:'';
-  return warn+reportShell({eyebrow:'공유학점 · 완료보고서 (통합)',title:'공유학점 운영 완료보고서',sub:`${info.title||'공유학점 교육과정'} · ${semLabel(sem)}`,
+  return warn+reportShell({eyebrow:'공유학점 · 완료보고서 (통합)',title:'공유학점 프로그램 운영결과 보고서',sub:`종합결과 보고서 · ${semLabel(sem)}`,
     lead:'수강·성적 자료와 기본자료를 바탕으로 자동 생성되었습니다. 숫자는 자료가 바뀌면 즉시 다시 계산됩니다.',
-    ck:[[st.univ,'참여 대학'],[fmt(st.n),'수강 건수'],[st.rate+'%','수료율']],sections:secs});
+    ck:[[st.univ,'참여 대학'],[fmt(st.n),'수강 건수'],[C?C.rate.toFixed(2)+'%':'–','이수율']],sections:secs});
 };
 VIEWS.univrep = () => {
   const sem = S.sem==='ALL' ? DB.sems.filter(s=>DB.records.some(r=>r.s===s&&r.c!=='수강중')).pop() : S.sem;
@@ -646,11 +855,11 @@ VIEWS.univrep = () => {
   if(!u) return '<div class="card empty">해당 학기 자료가 없습니다.</div>';
   const info=(DB.meta[sem]||{}).info||{};
   const rs=DB.records.filter(r=>r.s===sem&&r.u===u);
-  const {st,secs}=completionSections(rs,sem,info,u);
+  const {st,secs,C}=completionSections(rs,sem,info,u);
   return `<div class="toolbar"><select onchange="S.univ=this.value;render()">${univs.map(x=>`<option ${x===u?'selected':''}>${x}</option>`).join('')}</select>
     <span class="meta">대학을 바꾸면 보고서가 바로 다시 만들어집니다. 상단 대학 선택과 연동됩니다.</span></div>`+
-    reportShell({eyebrow:'공유학점 · 완료보고서 (대학별)',title:'공유학점 운영 완료보고서',sub:`${u} · ${semLabel(sem)}`,
-    lead:`${u} 소속 학생의 수강·수료 결과와 디지털배지 발급 현황입니다.`,ck:[[fmt(st.people),'참여 학생'],[fmt(st.n),'수강 건수'],[st.rate+'%','수료율']],sections:secs});
+    reportShell({eyebrow:'공유학점 · 완료보고서 (대학별)',title:'공유학점 프로그램 운영결과 보고서',sub:`${u} · ${semLabel(sem)}`,
+    lead:`${u} 소속 학생의 수강·수료 결과와 디지털배지 발급 현황입니다.`,ck:[[fmt(st.people),'참여 학생'],[fmt(st.n),'수강 건수'],[C?C.rate.toFixed(2)+'%':'–','이수율']],sections:secs});
 };
 
 /* --- 자료 들여오기: 열 이름 자동 인식 --- */
