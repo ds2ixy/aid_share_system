@@ -490,10 +490,35 @@ async function repPDF(){
   toast('PDF를 만드는 중입니다… (보고서 길이에 따라 10~30초)');
   try{
     const h2p=await loadH2P();
-    const clone=el.cloneNode(true); clone.querySelectorAll('.rbar').forEach(x=>x.remove()); clone.querySelectorAll('.tw').forEach(x=>{x.style.maxHeight='none';x.style.overflow='visible'});
-    const wrap=document.createElement('div'); wrap.style.cssText='position:fixed;left:-10000px;top:0;width:820px;background:#fff;color:#111'; wrap.setAttribute('data-theme','light'); wrap.appendChild(clone); document.body.appendChild(wrap);
-    fixColors(clone);
-    const blob=await h2p().set({margin:[10,10,12,10],image:{type:'jpeg',quality:0.92},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','h2','h3','.cover','.kpi']}}).from(clone).outputPdf('blob');
+    const clone=el.cloneNode(true); clone.querySelectorAll('.rbar,.toc').forEach(x=>x.remove());
+    // A4 본문 폭(190mm)에 맞춘 고정 폭 레이아웃: 표는 줄바꿈 허용, 넘치는 영역 없음
+    const W=718;   // 190mm ≈ 718px (96dpi)
+    const wrap=document.createElement('div'); wrap.style.cssText=`position:absolute;left:0;top:0;width:${W}px;background:#fff;color:#111;z-index:-1;pointer-events:none`; wrap.setAttribute('data-theme','light');
+    const st=document.createElement('style'); st.textContent=`
+      .pdfw{width:${W}px;max-width:${W}px;font-size:11.5px;line-height:1.55}
+      .pdfw *{box-shadow:none!important}
+      .pdfw .paper{max-width:${W}px}
+      .pdfw .cover{padding:28px 30px;border-radius:10px}.pdfw .cover h1{font-size:26px}.pdfw .cover .sub{font-size:15px}.pdfw .cover .ck b{font-size:24px}
+      .pdfw .sec{padding:14px 16px;margin-bottom:10px;border-radius:8px}
+      .pdfw .sec h2{font-size:16px}
+      .pdfw .tw{max-height:none!important;overflow:visible!important;border-radius:6px}
+      .pdfw table{width:100%;table-layout:auto;font-size:10px}
+      .pdfw th,.pdfw td{white-space:normal!important;word-break:keep-all;overflow-wrap:anywhere;padding:4px 5px}
+      .pdfw th{position:static}
+      .pdfw .kpis{flex-wrap:wrap}.pdfw .kpi b{font-size:18px}
+      .pdfw tr,.pdfw p,.pdfw li,.pdfw h2,.pdfw h3,.pdfw .kpis,.pdfw .cover,.pdfw thead{break-inside:avoid;page-break-inside:avoid}
+      .pdfw h2,.pdfw h3{break-after:avoid;page-break-after:avoid}`;
+    const box=document.createElement('div'); box.className='pdfw'; box.appendChild(clone); wrap.appendChild(st); wrap.appendChild(box); document.body.appendChild(wrap);
+    const sy=window.scrollY; window.scrollTo(0,0); await new Promise(r=>setTimeout(r,60));
+    fixColors(box);
+    const blob=await h2p().set({margin:[10,10,12,10],image:{type:'jpeg',quality:0.95},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',scrollX:0,scrollY:0,x:0,y:0,windowWidth:W},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+      pagebreak:{mode:['css','legacy'],avoid:['tr','p','li','h2','h3','.kpis','.cover','thead','.hint']}}).from(box).toPdf().get('pdf').then(pdf=>{
+        const n=pdf.internal.getNumberOfPages(); pdf.setFontSize(8); pdf.setTextColor(150);
+        for(let i=1;i<=n;i++){ pdf.setPage(i); pdf.text(`${i} / ${n}`, 105, 290, {align:'center'}); }
+        return pdf.output('blob'); });
+    window.scrollTo(0,sy);
     wrap.remove();
     await download(`${r.title}_${r.sub}.pdf`.replace(/[\\/:*?"<>|·\s]+/g,'_'), blob, 'application/pdf');
   }catch(e){ toast('PDF 만들기 실패: '+(e.message||e)); }
@@ -826,7 +851,7 @@ function reportShell(r){ // r:{eyebrow,title,sub,lead,ck:[[v,l]],sections:[{t,ht
   return `<div class="rep"><nav class="toc"><b style="font-size:13px">목차</b>${r.sections.map((s,i)=>`<a href="#sec${i}" onclick="document.getElementById('sec${i}').scrollIntoView({behavior:'smooth'});return false"><small>${String(i+1).padStart(2,'0')}</small>${s.t}</a>`).join('')}</nav>
   <div class="paper"><div class="cover"><div class="eb">${r.eyebrow}</div><div class="rule"></div><h1>${r.title}</h1><div class="sub">${r.sub}</div><p>${r.lead}</p>
     <div class="ck">${r.ck.map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div></div>
-  ${isPub()?'':`<div class="rbar"><button class="btn" onclick="repMD()">↓ MD 다운로드</button><button class="btn" onclick="repHTML()">↓ HTML 다운로드</button><button class="btn" onclick="repPDF()">↓ PDF 다운로드</button><button class="btn" onclick="window.print()">인쇄</button></div>`}
+  ${isPub()?'':`<div class="rbar"><button class="btn" onclick="repMD()">↓ MD 다운로드</button><button class="btn" onclick="repHTML()">↓ HTML 다운로드</button><button class="btn" onclick="repPDF()">↓ PDF 다운로드 (A4)</button></div>`}
   ${r.sections.map((s,i)=>`<section class="sec" id="sec${i}"><h2><small>${String(i+1).padStart(2,'0')}</small>${s.t}</h2>${s.html}</section>`).join('')}</div></div>`;
 }
 function repMD(){const r=window._rep;download(`${r.title}_${r.sub}.md`.replace(/[\\/:*?"<>|·\s]+/g,'_'),`# ${r.title}\n\n${r.sub}\n\n${r.ck.map(([v,l])=>`- **${l}**: ${v}`).join('\n')}\n\n`+r.sections.map((s,i)=>`## ${i+1}. ${s.t}\n\n${s.md}\n`).join('\n'),'text/markdown')}
