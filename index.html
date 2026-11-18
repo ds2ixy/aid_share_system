@@ -451,11 +451,52 @@ function table(cols, data, opt={}){
   <tbody>${data.length?data.map(r=>`<tr>${cols.map(c=>`<td class="${c.n?'n':''}">${c.f?c.f(r):esc(fmt(r[c.k]))}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${cols.length}" class="empty">자료가 없습니다</td></tr>`}</tbody>
   ${opt.foot?`<tfoot><tr>${opt.foot.map((v,i)=>`<td class="${cols[i]?.n?'n':''}">${v}</td>`).join('')}</tr></tfoot>`:''}</table></div>`;
 }
-let _dl=null; try{ if(window.claude&&window.claude.use) window.claude.use('downloads').then(d=>{_dl=d}).catch(()=>{}) }catch(e){}
-function download(name, text, type='text/plain'){
+/* 내려받기: claude.ai 안에서는 downloads 기능(저장 확인창)으로, 일반 브라우저에서는 파일 링크로 */
+let _dlP=null;
+function getDl(){ if(!_dlP){ try{ _dlP = (window.claude&&window.claude.use) ? window.claude.use('downloads').catch(()=>null) : Promise.resolve(null); }catch(e){ _dlP=Promise.resolve(null); } } return _dlP; }
+getDl();
+const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+async function download(name, data, type='text/plain'){
   if(isPub()) return; // 게시용 보기 전용: 내려받기 없음
-  if(_dl){ _dl.save({filename:name,data:text}).then(r=>{if(r&&r.status==='saved')toast('저장했습니다')}).catch(e=>{const c=e&&e.code;if(c==='declined')return;toast(c==='rate_limited'?'잠시 후 다시 눌러 주세요':'이 화면에서는 저장할 수 없습니다')}); return }
-  const b=new Blob([text],{type:type+';charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  const dl = await getDl();
+  if(dl){
+    try{ const r=await dl.save({filename:name,data}); if(r&&r.status==='saved') toast('저장했습니다: '+name); }
+    catch(e){ const c=e&&e.code; if(c==='declined') return;
+      toast(c==='rate_limited'?'잠시 후 다시 눌러 주세요':c==='rejected_extension'?'이 파일 형식은 저장할 수 없습니다':'저장하지 못했습니다 ('+(c||e&&e.message||'오류')+')'); }
+    return;
+  }
+  if(inFrame){ toast('이 화면에서는 파일 저장이 막혀 있습니다. claude.ai를 PC 브라우저에서 열어 주세요'); return; }
+  const b = data instanceof Blob ? data : new Blob([data],{type:type+';charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+/* 보고서 PDF: 인쇄 창 대신 PDF 파일을 직접 만들어 저장 */
+let _h2p=null;
+function loadH2P(){ if(window.html2pdf) return Promise.resolve(window.html2pdf); if(_h2p) return _h2p;
+  _h2p=new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';s.onload=()=>ok(window.html2pdf);s.onerror=()=>{_h2p=null;no(new Error('PDF 도구를 불러오지 못했습니다'))};document.head.appendChild(s)}); return _h2p; }
+/* PDF 도구(html2canvas)가 color-mix()/color() 색을 못 읽어서 rgb로 바꿔 둠 */
+function toRgb(v){
+  const m=/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)/.exec(v);
+  if(m) return `rgba(${Math.round(m[1]*255)},${Math.round(m[2]*255)},${Math.round(m[3]*255)},${m[4]??1})`;
+  const c=document.createElement('canvas').getContext('2d'); c.fillStyle='#000'; c.fillStyle=v; return /color\(|oklch|lab\(/.test(c.fillStyle)?'rgba(0,0,0,0)':c.fillStyle;
+}
+function fixColors(root){
+  const props=['color','backgroundColor','borderTopColor','borderRightColor','borderBottomColor','borderLeftColor','outlineColor','textDecorationColor'];
+  [root,...root.querySelectorAll('*')].forEach(el=>{ const cs=getComputedStyle(el);
+    props.forEach(pr=>{ const v=cs[pr]; if(v&&/color\(|color-mix|oklch|lab\(/.test(v)) el.style[pr]=toRgb(v); });
+    const bs=cs.boxShadow; if(bs&&/color\(/.test(bs)) el.style.boxShadow='none'; });
+}
+async function repPDF(){
+  const r=window._rep, el=document.querySelector('.paper'); if(!el) return;
+  toast('PDF를 만드는 중입니다… (보고서 길이에 따라 10~30초)');
+  try{
+    const h2p=await loadH2P();
+    const clone=el.cloneNode(true); clone.querySelectorAll('.rbar').forEach(x=>x.remove()); clone.querySelectorAll('.tw').forEach(x=>{x.style.maxHeight='none';x.style.overflow='visible'});
+    const wrap=document.createElement('div'); wrap.style.cssText='position:fixed;left:-10000px;top:0;width:820px;background:#fff;color:#111'; wrap.setAttribute('data-theme','light'); wrap.appendChild(clone); document.body.appendChild(wrap);
+    fixColors(clone);
+    const blob=await h2p().set({margin:[10,10,12,10],image:{type:'jpeg',quality:0.92},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy'],avoid:['tr','h2','h3','.cover','.kpi']}}).from(clone).outputPdf('blob');
+    wrap.remove();
+    await download(`${r.title}_${r.sub}.pdf`.replace(/[\\/:*?"<>|·\s]+/g,'_'), blob, 'application/pdf');
+  }catch(e){ toast('PDF 만들기 실패: '+(e.message||e)); }
 }
 function toCSV(cols,data){const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;return '﻿'+[cols.map(c=>q(c.t)).join(','),...data.map(r=>cols.map(c=>q(c.raw?c.raw(r):r[c.k])).join(','))].join('\n')}
 function scopeText(){return `${semLabel(S.sem)} · ${S.univ==='ALL'?'전체 대학':S.univ}`}
@@ -773,7 +814,7 @@ function reportShell(r){ // r:{eyebrow,title,sub,lead,ck:[[v,l]],sections:[{t,ht
   return `<div class="rep"><nav class="toc"><b style="font-size:13px">목차</b>${r.sections.map((s,i)=>`<a href="#sec${i}" onclick="document.getElementById('sec${i}').scrollIntoView({behavior:'smooth'});return false"><small>${String(i+1).padStart(2,'0')}</small>${s.t}</a>`).join('')}</nav>
   <div class="paper"><div class="cover"><div class="eb">${r.eyebrow}</div><div class="rule"></div><h1>${r.title}</h1><div class="sub">${r.sub}</div><p>${r.lead}</p>
     <div class="ck">${r.ck.map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}</div></div>
-  ${isPub()?'':`<div class="rbar"><button class="btn" onclick="repMD()">↓ MD 다운로드</button><button class="btn" onclick="repHTML()">↓ HTML 다운로드</button><button class="btn" onclick="window.print()">PDF · 인쇄</button></div>`}
+  ${isPub()?'':`<div class="rbar"><button class="btn" onclick="repMD()">↓ MD 다운로드</button><button class="btn" onclick="repHTML()">↓ HTML 다운로드</button><button class="btn" onclick="repPDF()">↓ PDF 다운로드</button><button class="btn" onclick="window.print()">인쇄</button></div>`}
   ${r.sections.map((s,i)=>`<section class="sec" id="sec${i}"><h2><small>${String(i+1).padStart(2,'0')}</small>${s.t}</h2>${s.html}</section>`).join('')}</div></div>`;
 }
 function repMD(){const r=window._rep;download(`${r.title}_${r.sub}.md`.replace(/[\\/:*?"<>|·\s]+/g,'_'),`# ${r.title}\n\n${r.sub}\n\n${r.ck.map(([v,l])=>`- **${l}**: ${v}`).join('\n')}\n\n`+r.sections.map((s,i)=>`## ${i+1}. ${s.t}\n\n${s.md}\n`).join('\n'),'text/markdown')}
