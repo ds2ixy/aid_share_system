@@ -377,13 +377,16 @@ function togglePrivacy(){
   PRIV.on=!PRIV.on;applyPrivacy();loadDB();privBtn();render();
   toast(PRIV.on?'실명으로 표시합니다':'마스킹했습니다 · 화면과 내려받기 모두 가려집니다');
 }
+let REMOTE = {};
 function loadDB(){
   const imported = RAW.public ? {} : LS.get('imported',{});        // {semester: records[]} 들여온 학기는 기본 자료를 대체
   const recs = BASE.filter(r=>!imported[r.s]);
   Object.values(imported).forEach(a=>recs.push(...a.map(r=>({...r,p:r.p||r.u+'|'+r.id,...(PRIV.on?{}:{n:maskName(r.n),id:maskId(r.id)})}))));
-  DB.records = recs;
+  DB.all = recs;                                  // 교과 + 비교과 (요약표 비교과 탭·수강신청 현황용)
+  DB.records = recs.filter(r=>r.g==='교과');      // 수강 인원은 교과 기준
+  // 기본자료: 빌드 내장(RAW) ← 게시 저장소 meta.json(REMOTE) ← 이 브라우저 입력(내부용)
   DB.meta = {}; const lm = isPub() ? {} : LS.get('meta',{});
-  uniq([...Object.keys(RAW.meta||{}),...Object.keys(lm)]).forEach(s=>DB.meta[s]={...(RAW.meta||{})[s],...lm[s]});
+  uniq([...Object.keys(RAW.meta||{}),...Object.keys(REMOTE||{}),...Object.keys(lm)]).forEach(s=>DB.meta[s]={...(RAW.meta||{})[s],...(REMOTE||{})[s],...lm[s]});
   const sems = new Set([...SEMS, ...Object.keys(imported)]);
   DB.sems = [...sems].sort();
 }
@@ -487,7 +490,7 @@ VIEWS.home = () => {
 
 VIEWS.summary = () => {
   const gsel = S.g||'교과';
-  const rs = rows({allUniv:true}).filter(r=>r.g===gsel);
+  const rs = DB.all.filter(r=>(S.sem==='ALL'||r.s===S.sem)&&r.g===gsel);
   const univs = uniq(rs.map(r=>r.u)).sort();
   const by = groupBy(rs,'k'); if(S.sem!=='ALL'&&gsel==='교과') [...courseMeta(S.sem),...offeredIn(S.sem)].forEach(c=>{if(!by.has(c.k)) by.set(c.k,[])}); // 개설했지만 수강생 0명인 과목도 표시
   const courses=[...by.keys()].sort(byCourse);
@@ -522,7 +525,7 @@ VIEWS.students = () => {
   const courses=uniq(all.map(r=>r.k)).sort(byCourse);
   window._stuExport=()=>download(`공유학점_수강생_${S.sem}_${S.univ}.csv`,toCSV(cols,rs),'text/csv');
   return `<div class="toolbar">
-    <input type="search" placeholder="이름·아이디·대학·교과목 검색" value="${esc(S.q)}" oninput="S.q=this.value;S.page=0;render(true)" style="min-width:240px" id="qbox">
+    <input type="search" placeholder="이름·아이디·대학·교과목 검색" value="${esc(S.q)}" oninput="if(!event.isComposing){S.q=this.value;S.page=0;render(true)}" oncompositionend="S.q=this.value;S.page=0;render(true)" style="min-width:240px" id="qbox">
     <select onchange="S.fc=this.value;S.page=0;render()">${['ALL','수료','미수료','수강중'].map(v=>`<option value="${v}" ${S.fc===v?'selected':''}>${v==='ALL'?'수료여부 전체':v}</option>`).join('')}</select>
     <select onchange="S.fk=this.value;S.page=0;render()" style="max-width:260px"><option value="ALL">교과목 전체</option>${courses.map(k=>`<option ${S.fk===k?'selected':''}>${esc(k)}</option>`).join('')}</select>
     ${isPub()?'':'<button class="btn" onclick="_stuExport()">CSV 내려받기</button>'}
@@ -534,7 +537,7 @@ VIEWS.students = () => {
 
 VIEWS.enroll = () => {
   const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
-  const rs = DB.records.filter(r=>r.s===sem && (S.univ==='ALL'||r.u===S.univ));
+  const rs = DB.all.filter(r=>r.s===sem && (S.univ==='ALL'||r.u===S.univ));
   const cancels = (DB.cancels||[]).filter(r=>r.s===sem && (S.univ==='ALL'||r.u===S.univ));
   const st = stat(rs);
   const byU=[...groupBy(rs,'u')].map(([u,v])=>({u,n:v.length,p:uniq(v.map(r=>r.p)).length,g1:v.filter(r=>r.g==='교과').length,g2:v.filter(r=>r.g==='비교과').length,c:cancels.filter(c=>c.u===u).length})).sort((a,b)=>b.n-a.n);
@@ -554,7 +557,7 @@ function courseMeta(sem){return (DB.meta[sem]?.courses)||[]}
 const FEE_PER_BAN=210000, BAN_SIZE=100, BAN_TOL=10, FEE_FROM='2026-1';   // 강의료는 26학년도부터 지급
 const feePaid = sem => sem>=FEE_FROM;
 const autoBan = n => n<=0 ? 0 : Math.max(1, Math.floor(n/BAN_SIZE) + ((n%BAN_SIZE)>BAN_TOL?1:0));
-const banCount = (sem,k) => DB.records.filter(r=>r.s===sem&&r.k===k&&r.g==='교과').length;   // 교과 수강 인원(비교과 제외)
+const banCount = (sem,k) => DB.records.filter(r=>r.s===sem&&r.k===k).length;   // 교과 수강 인원
 function banInfo(sem,k,m){ const n=banCount(sem,k), a=autoBan(n), man=m&&m.banManual&&m.ban!=null&&m.ban!==''?+m.ban:null; const b=man??a; return {n,auto:a,ban:b,manual:man!=null&&man!==a,fee:feePaid(sem)?b*FEE_PER_BAN:0}; }
 VIEWS.leads = () => {
   const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
@@ -567,15 +570,15 @@ VIEWS.leads = () => {
   return `<div class="toolbar"><span class="meta">${semLabel(sem)} 과정책임자·운영비 · 인원은 수강 자료에서 자동 집계</span>
     ${isPub()?'':`<button class="btn" onclick="go('input')">기본자료 입력에서 수정</button>
     ${meta.length?'':`<button class="btn" onclick="copyMeta('${sem}')">이전 학기 정보 복사</button>`}`}</div>
-    <div class="hint">${feePaid(sem)?'':'<b>25학년도는 강의료를 지급하지 않았습니다 (26학년도부터 지급).</b> '}강의료 = 분반 수 × 210,000원. 분반은 교과 수강 인원 100명 기준이며, 100명을 넘는 나머지가 10명 이하이면 앞 분반에 포함합니다 (예: 110명→1분반, 111명→2분반, 203명→2분반). ${isPub()?'':'기본자료 입력에서 분반을 직접 적으면 「조정」으로 표시되고 그 값으로 계산합니다.'}</div>
+    <div class="hint">${feePaid(sem)?'':'<b>25학년도는 강의료를 지급하지 않았습니다 (26학년도부터 지급).</b> '}강의료 = 분반 수 × 210,000원. 분반은 수강 인원(교과) 100명 기준이며, 100명을 넘는 나머지가 10명 이하이면 앞 분반에 포함합니다 (예: 110명→1분반, 111명→2분반, 203명→2분반). ${isPub()?'':'기본자료 입력에서 분반을 직접 적으면 「조정」으로 표시되고 그 값으로 계산합니다.'}</div>
     ${meta.length?'':`<div class="hint">${semLabel(sem)}의 과정책임자 정보가 아직 없습니다.${isPub()?'':' 「이전 학기 정보 복사」 또는 「기본자료 입력」에서 등록하세요.'}</div>`}
-    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k',f:r=>esc(r.k)+(offerNote(r.k)?` <span class="pill p-ing">${offerNote(r.k)}</span>`:'')},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원(교과+비교과)',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반 기준 인원(교과)',k:'bn',n:1},{t:'분반',k:'ban',n:1,f:r=>r.manual?`<b>${r.ban}</b> <span class="pill p-ing" title="자동 계산 ${r.auto}분반">조정</span>`:fmt(r.ban)},{t:'강의료',k:'fee',n:1,f:r=>feePaid(sem)?fmt(r.fee):'<span class="empty">미지급</span>'},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
-      {foot:['','','합계','',fmt(sum('n')),fmt(sum('d')),fmt(sum('bn')),fmt(sum('ban')),fmt(sum('fee')),fmt(sum('dev')),fmt(sum('rep')),'']})}`;
+    ${table([{t:'No',k:'i',n:1},{t:'구분',k:'cat',f:r=>esc(cinfo(r.k).cat)},{t:'교과목명',k:'k',f:r=>esc(r.k)+(offerNote(r.k)?` <span class="pill p-ing">${offerNote(r.k)}</span>`:'')},{t:'과정책임자',k:'lead',f:r=>r.lead?esc(r.lead):'<span class="empty">미지정</span>'},{t:'수강 인원',k:'n',n:1},{t:'수료',k:'d',n:1},{t:'분반',k:'ban',n:1,f:r=>r.manual?`<b>${r.ban}</b> <span class="pill p-ing" title="자동 계산 ${r.auto}분반">조정</span>`:fmt(r.ban)},{t:'강의료',k:'fee',n:1,f:r=>feePaid(sem)?fmt(r.fee):'<span class="empty">미지급</span>'},{t:'개발비',k:'dev',n:1},{t:'보고서비',k:'rep',n:1},{t:'개발 진도(주차)',k:'weeks',n:1,f:r=>r.dev?`${r.weeks}/14`:'–'}],data,
+      {foot:['','','합계','',fmt(sum('n')),fmt(sum('d')),fmt(sum('ban')),fmt(sum('fee')),fmt(sum('dev')),fmt(sum('rep')),'']})}`;
 };
 function copyMeta(sem){
   const prev = DB.sems.filter(s=>s<sem && courseMeta(s).length).pop() || DB.sems.filter(s=>courseMeta(s).length).pop();
   if(!prev){toast('복사할 학기 정보가 없습니다');return}
-  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),courses:courseMeta(prev).map(c=>({...c,dev:0,rep:0,weeks:[]}))}; LS.set('meta',m); loadDB(); render(); toast(`${semLabel(prev)} 정보를 복사했습니다(개발비는 0으로)`);
+  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),courses:courseMeta(prev).map(c=>({...c,dev:0,rep:0,weeks:[]}))}; LS.set('meta',m); loadDB(); render(); schedulePublish(); toast(`${semLabel(prev)} 정보를 복사했습니다(개발비는 0으로)`);
 }
 
 VIEWS.badge = () => {
@@ -675,9 +678,9 @@ async function importReports(files, sem){
     }catch(e){rows.push({f:f.name,who:'–',n:0,s:0,N:'',ok:'오류: '+(e.message||e)});}
   }
   const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),survey:cur};
-  if(LS.set('meta',m)){loadDB(); render(); setTimeout(()=>{const o=document.getElementById('rpOut');if(o)o.innerHTML=table([{t:'파일',k:'f'},{t:'반영 대상',k:'who'},{t:'역량 항목(22)',k:'n',n:1},{t:'만족도(5)',k:'s',n:1},{t:'N',k:'N',n:1},{t:'결과',k:'ok'}],rows);const g=document.getElementById('rpMsg');if(g)g.textContent=`${rows.filter(r=>r.ok==='반영').length}/${rows.length}개 반영 · 보고서에 바로 적용됨`;},50);}
+  if(LS.set('meta',m)){loadDB(); render(); schedulePublish(); setTimeout(()=>{const o=document.getElementById('rpOut');if(o)o.innerHTML=table([{t:'파일',k:'f'},{t:'반영 대상',k:'who'},{t:'역량 항목(22)',k:'n',n:1},{t:'만족도(5)',k:'s',n:1},{t:'N',k:'N',n:1},{t:'결과',k:'ok'}],rows);const g=document.getElementById('rpMsg');if(g)g.textContent=`${rows.filter(r=>r.ok==='반영').length}/${rows.length}개 반영 · 보고서에 바로 적용됨`;},50);}
 }
-function importMeta(f){const fr=new FileReader();fr.onload=e=>{try{const o=JSON.parse(e.target.result);const src=o.meta||o;const m=LS.get('meta',{});Object.entries(src).forEach(([s,v])=>m[s]={...(m[s]||{}),...v});LS.set('meta',m);loadDB();render();toast('입력 내용을 불러왔습니다')}catch(err){toast('meta.json 형식이 아닙니다')}};fr.readAsText(f)}
+function importMeta(f){const fr=new FileReader();fr.onload=e=>{try{const o=JSON.parse(e.target.result);const src=o.meta||o;const m=LS.get('meta',{});Object.entries(src).forEach(([s,v])=>m[s]={...(m[s]||{}),...v});LS.set('meta',m);loadDB();render();toast('입력 내용을 불러왔습니다');schedulePublish()}catch(err){toast('meta.json 형식이 아닙니다')}};fr.readAsText(f)}
 function saveSurvey(sem, sc){
   const num=v=>v===''||v==null?null:+v;
   const items={}; document.querySelectorAll('[data-sv]').forEach(e=>{const k=e.dataset.sv;(items[k]=items[k]||{})[e.dataset.f]=num(e.value)});
@@ -687,18 +690,18 @@ function saveSurvey(sem, sc){
   const block={N:num(document.getElementById('svN').value),items,sat};
   const m=LS.get('meta',{}); const cur=JSON.parse(JSON.stringify(survey(sem)||{}));
   if(sc==='전체') cur.all={...(cur.all||{}),...block}; else {cur.univ=cur.univ||{}; cur.univ[sc]={...(cur.univ[sc]||{}),...block};}
-  m[sem]={...(m[sem]||{}),survey:cur}; if(LS.set('meta',m)){loadDB();toast('설문 결과를 저장했습니다 · 보고서에 바로 반영됩니다')}
+  m[sem]={...(m[sem]||{}),survey:cur}; if(LS.set('meta',m)){loadDB();toast('설문 결과를 저장했습니다 · 보고서에 바로 반영됩니다');schedulePublish()}
 }
 VIEWS.input = () => {
   const sem = S.sem==='ALL' ? DB.sems[DB.sems.length-1] : S.sem;
   const m = DB.meta[sem]||{}; const info = m.info||{};
   const meta = courseMeta(sem);
   const names = uniq([...meta.map(x=>x.k), ...uniq(DB.records.filter(r=>r.s===sem).map(r=>r.k)), ...offeredIn(sem).map(o=>o.k)]).sort(byCourse);
-  return `<div class="card"><h2>${semLabel(sem)} 기본자료</h2>
-    <div class="hint">여기 입력한 문장과 아래 교과목 정보가 개발보고서·완료보고서에 그대로 들어갑니다. 숫자(수강·수료·대학별 표)는 수강 자료에서 자동 계산됩니다. 입력값은 이 브라우저에만 저장됩니다. <b>게시 주소에 반영하려면 「입력 내용 내보내기」 파일을 Claude에게 주거나 자료 저장소의 data/meta.json으로 올리세요.</b></div>
+  return publishCard()+`<div class="card"><h2>${semLabel(sem)} 기본자료</h2>
+    <div class="hint">여기 입력한 문장과 아래 교과목 정보가 개발보고서·완료보고서에 그대로 들어갑니다. 숫자(수강·수료·대학별 표)는 수강 자료에서 자동 계산됩니다. 입력값은 이 브라우저에만 저장됩니다. 저장하면 위 「게시용 자동 반영」으로 게시 주소에도 바로 반영됩니다.</div>
     <div class="form">${INPUT_FIELDS.map(([k,l,ph])=>`<label>${l}</label>${['goal','devSummary','devQuality','outcome','issue','plan'].includes(k)?`<textarea data-k="${k}" placeholder="${esc(ph)}">${esc(info[k]||'')}</textarea>`:`<input type="text" data-k="${k}" value="${esc(info[k]||'')}" placeholder="${esc(ph)}">`}`).join('')}</div>
     <h3>교과목 정보 (과정책임자 · 운영비 · 개발 진도)</h3>
-    <div class="tw"><table><thead><tr><th>교과목명</th><th>과정책임자</th><th class="n">교과 인원</th><th class="n">분반 (비우면 자동)</th><th class="n">강의료</th><th class="n">개발비</th><th class="n">보고서비</th><th>개발 완료 주차 (예: 1,2,3)</th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th>교과목명</th><th>과정책임자</th><th class="n">수강 인원</th><th class="n">분반 (비우면 자동)</th><th class="n">강의료</th><th class="n">개발비</th><th class="n">보고서비</th><th>개발 완료 주차 (예: 1,2,3)</th></tr></thead><tbody>
     ${names.map(k=>{const c=meta.find(x=>x.k===k)||{};const bi=banInfo(sem,k,c);return `<tr data-course="${esc(k)}"><td>${esc(k)}</td><td><input type="text" data-f="lead" value="${esc(c.lead||'')}" style="width:130px"></td>
       <td class="n">${fmt(bi.n)}</td><td><input type="number" min="0" data-f="ban" value="${c.banManual&&c.ban!=null?c.ban:''}" placeholder="${bi.auto}" style="width:70px" title="비우면 자동 ${bi.auto}분반" oninput="banLive(this,${bi.auto},'${sem}')" onchange="saveInput('${sem}')"></td><td class="n" data-fee>${feePaid(sem)?fmt(bi.fee):'미지급'}</td>
       <td><input type="number" data-f="dev" value="${c.dev||0}" style="width:110px"></td><td><input type="number" data-f="rep" value="${c.rep||0}" style="width:100px"></td>
@@ -710,10 +713,48 @@ VIEWS.input = () => {
       <button class="btn" onclick="go('devrep')">개발보고서 보기</button><button class="btn" onclick="go('comprep')">완료보고서 보기</button></div></div>`+surveyEditor(sem);
 };
 function banLive(el,auto,sem){ const b=el.value===''?auto:Math.max(0,+el.value||0); const td=el.closest('tr').querySelector('[data-fee]'); if(td) td.textContent=feePaid(sem)?fmt(b*FEE_PER_BAN):'미지급'; }
+/* ===== 게시용 자동 반영 =====
+   내부용에서 저장하면 meta.json(기본자료·분반·설문)을 GitHub 게시 저장소에 올리고,
+   게시용 페이지는 열 때마다 그 파일을 읽습니다. 학생 개인정보는 들어가지 않습니다. */
+const PUB = {repo:'ds2ixy/aid_share_system', path:'meta.json', url:'https://ds2ixy.github.io/aid_share_system/meta.json'};
+async function fetchRemoteMeta(){
+  try{ const r=await fetch(PUB.url+'?t='+Date.now(),{cache:'no-store'}); if(!r.ok) return false; const j=await r.json(); REMOTE=j.meta||j; return true; }catch(e){ return false; }
+}
+function publishPayload(){ const lm=LS.get('meta',{}); const out={}; uniq([...Object.keys(REMOTE||{}),...Object.keys(lm)]).forEach(s=>out[s]={...(REMOTE||{})[s],...lm[s]}); return {updated:new Date().toISOString(), meta:out}; }
+const b64utf8 = s => { const b=new TextEncoder().encode(s); let x=''; for(let i=0;i<b.length;i+=0x8000) x+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(x); };
+let _pubTimer=null, PUBSTATE={state:'idle',msg:''};
+function pubStatus(state,msg){ PUBSTATE={state,msg,at:new Date()}; const el=document.getElementById('pubState'); if(el) el.innerHTML=pubStateHtml(); }
+function pubStateHtml(){ const s=PUBSTATE; const c=s.state==='ok'?'p-ok':s.state==='err'?'p-no':'p-ing'; return s.state==='idle'?'<span class="meta">아직 게시하지 않음</span>':`<span class="pill ${c}">${s.state==='ok'?'게시 완료':s.state==='err'?'게시 실패':'게시 중'}</span> <span class="meta">${esc(s.msg)}</span>`; }
+function schedulePublish(){ if(RAW.public) return; if(!LS.get('ghToken','')){ pubStatus('err','게시 연동 토큰이 없어 게시용에 반영되지 않았습니다. 아래 「게시용 자동 반영」에서 토큰을 저장하세요.'); return; } clearTimeout(_pubTimer); pubStatus('busy','잠시 후 게시용에 올립니다…'); _pubTimer=setTimeout(publishNow,1200); }
+async function publishNow(){
+  const tok=LS.get('ghToken',''); if(!tok){ pubStatus('err','토큰이 없습니다'); return false; }
+  const api=`https://api.github.com/repos/${PUB.repo}/contents/${PUB.path}`, h={Authorization:'Bearer '+tok, Accept:'application/vnd.github+json'};
+  try{
+    pubStatus('busy','GitHub에 올리는 중…');
+    let sha; const g=await fetch(api+'?ref=main',{headers:h,cache:'no-store'}); if(g.ok) sha=(await g.json()).sha; else if(g.status!==404) throw new Error('읽기 '+g.status);
+    const body={message:'게시용 기본자료 갱신 (내부용에서 자동 반영)', content:b64utf8(JSON.stringify(publishPayload(),null,1)), branch:'main'}; if(sha) body.sha=sha;
+    const r=await fetch(api,{method:'PUT',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('쓰기 '+r.status+(r.status===401||r.status===403?' (토큰 권한 확인)':r.status===409?' (동시 수정, 다시 시도)':''));
+    pubStatus('ok',`${new Date().toLocaleTimeString('ko-KR')} · 게시 주소에 1분 안에 반영됩니다`); toast('게시용에 반영했습니다'); return true;
+  }catch(e){ pubStatus('err',(e.message||e)+' · 이 화면에서 GitHub 연결이 막혔다면 「게시용 파일 내려받기」 후 저장소에 올려 주세요'); return false; }
+}
+function pubDownload(){ download('meta.json',JSON.stringify(publishPayload(),null,1),'application/json'); }
+function saveToken(){ const v=document.getElementById('ghTok').value.trim(); LS.set('ghToken',v); toast(v?'토큰을 이 브라우저에 저장했습니다':'토큰을 지웠습니다'); render(); }
+function publishCard(){
+  const has=!!LS.get('ghToken','');
+  return `<div class="card" style="margin-bottom:14px"><h2>게시용 자동 반영</h2>
+    <div class="toolbar">상태: <span id="pubState">${pubStateHtml()}</span></div>
+    <div class="hint">여기서 저장한 기본자료·분반·과정책임자·설문 결과는 저장 즉시 게시용(<a href="https://ds2ixy.github.io/aid_share_system/" target="_blank">ds2ixy.github.io/aid_share_system</a>)에 반영됩니다. 학생 이름·아이디는 올라가지 않습니다.<br>
+      처음 한 번 GitHub 토큰을 저장해야 합니다: GitHub → Settings → Developer settings → Fine-grained tokens → 저장소 <b>aid_share_system</b>만 선택 → 권한 <b>Contents: Read and write</b>. 토큰은 이 브라우저에만 저장됩니다.</div>
+    <div class="toolbar"><input type="password" id="ghTok" placeholder="${has?'저장됨 (바꾸려면 새로 입력)':'github_pat_… 토큰 붙여넣기'}" style="min-width:320px" autocomplete="off">
+      <button class="btn" onclick="saveToken()">토큰 저장</button>
+      <button class="btn pri" onclick="publishNow()" ${has?'':'disabled'}>지금 게시용에 반영</button>
+      <button class="btn" onclick="pubDownload()">게시용 파일 내려받기 (meta.json)</button></div></div>`;
+}
 function saveInput(sem){
   const info={}; document.querySelectorAll('[data-k]').forEach(e=>info[e.dataset.k]=e.value.trim());
   const courses=[...document.querySelectorAll('tr[data-course]')].map(tr=>{const g=f=>tr.querySelector(`[data-f="${f}"]`).value;return {k:tr.dataset.course,lead:g('lead').trim(),ban:g('ban')===''?null:+g('ban'),banManual:g('ban')!=='',dev:+g('dev')||0,rep:+g('rep')||0,weeks:g('weeks').split(/[,\s]+/).map(Number).filter(n=>n>=1&&n<=14)}});
-  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),info,courses}; if(LS.set('meta',m)){loadDB();toast('저장했습니다 · 보고서에 바로 반영됩니다')}
+  const m=LS.get('meta',{}); m[sem]={...(m[sem]||{}),info,courses}; if(LS.set('meta',m)){loadDB();toast('저장했습니다 · 보고서에 바로 반영됩니다');schedulePublish()}
 }
 
 /* --- 보고서 엔진: sections 배열 → 화면/MD/HTML 동시 생성 --- */
@@ -868,7 +909,8 @@ function compSection(rs, rsAll, sem, univ){
     <tbody><tr><td>이수율</td><td class="n">${fmt(ap)}</td><td class="n">${fmt(dn)}</td><td class="n"><b>${rate.toFixed(2)}</b></td>${univ?`<td class="n">${fmt(apA)}</td><td class="n">${fmt(sa.done)}</td><td class="n">${rateA.toFixed(2)}</td>`:''}</tr></tbody></table></div>
     <p class="meta">※ 수강 자료(교과목별 수강 건수) 기준. 청강생 포함 여부나 과제 제출에 따른 수료 판단 기준에 따라 설문 집계와 차이가 있을 수 있습니다.</p>`;
   // 운영형태별
-  const byG=['교과','비교과'].map(gg=>{const x=rs.filter(r=>r.g===gg&&g(r));return {gg,ap:x.length,dn:x.filter(r=>r.c==='수료').length}}).filter(x=>x.ap);
+  const rsG=DB.all.filter(r=>r.s===sem&&(!univ||r.u===univ));
+  const byG=['교과','비교과'].map(gg=>{const x=rsG.filter(r=>r.g===gg&&g(r));return {gg,ap:x.length,dn:x.filter(r=>r.c==='수료').length}}).filter(x=>x.ap);
   if(byG.length>1) h+=`<h3>운영형태별 이수율</h3>`+table([{t:'구분',k:'gg',f:r=>r.gg==='교과'?'정규 교과목 운영':'비교과 프로그램 운영'},{t:'신청자',k:'ap',n:1},{t:'이수자',k:'dn',n:1},{t:'이수율(%)',k:'r',n:1}],byG.map(x=>({...x,r:(x.dn/x.ap*100).toFixed(2)})));
   let p=`<p>${univ?`${univ}의`:'프로그램 전체'} 이수율은 ${rate.toFixed(2)}%로, 신청자 ${fmt(ap)}건 중 ${fmt(dn)}건이 이수 조건을 충족했다.${univ?` 이는 전체 참여대학 평균 ${rateA.toFixed(2)}%보다 ${Math.abs(rate-rateA).toFixed(2)}%p ${rate>=rateA?'높은':'낮은'} 수준이다.`:''} 일반적으로 온라인 공개강좌(MOOC)의 이수율이 10% 내외에 그치고 다수의 대학 간 공유학점 프로그램이 70~80% 수준에 머무르는 것과 비교하면, ${univ?'본 대학':'본 프로그램'}의 ${rate.toFixed(2)}%는 이 범위와 ${rateCmp(rate)}이다.</p>`;
   let extra='';
@@ -1064,6 +1106,7 @@ function setTheme(t){document.documentElement.dataset.theme=t;LS.set('theme',t);
 document.querySelectorAll('#themeSeg button').forEach(b=>b.onclick=()=>setTheme(b.dataset.t));
 {const t=LS.get('theme',null);if(t)setTheme(t);else{const d=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.querySelectorAll('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===d));document.querySelectorAll('.quick [data-qt]').forEach(b=>b.classList.toggle('on',b.dataset.qt===d))}}
 applyPrivacy(); loadDB(); privBtn();
+fetchRemoteMeta().then(ok=>{ if(ok){ loadDB(); renderShell(); render(); } });
 if(!DB.sems.includes(S.sem)&&S.sem!=='ALL') S.sem='2026-1';
 const h=location.hash.slice(1); if(VIEWS[h]&&!blocked(h)) S.view=h;
 if(RAW.public) [...DATA_VIEWS,...EDIT_VIEWS].forEach(v=>delete VIEWS[v]);
