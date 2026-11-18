@@ -233,10 +233,11 @@ const semLabel = s => s==='ALL' ? '전체' : `${s.slice(2,4)}년 ${s.slice(5)}�
 /* 교과목 구분·순서 (이 순서대로 모든 표에 정렬) */
 const CATS = [
   {cat:'일반교양', list:['매력적인 나를 표현하는 퍼스널 뷰티전략','호감가는 구강관리개론','지속 가능한 세상을 위한 첫걸음! ESG !','와인의 맛과 향, 그리고 문화 이야기','감각을 깨우는 뷰티테라피 & 테크','다이어트와 식생활','재미있게 배우는 금융과 경제의 기초']},
-  {cat:'AI 기초과정', list:['AI 윤리와 책임','인공지능(AI) 기반의 진로개발 포트폴리오 제작 클래스','AI Lifestyle My GPTer','AI를 활용한 미디어 제작과 혁신적 학습 전략','AI기반 문서작성 마스터(1)','생성형 AI 글쓰기(1)','AI 일정관리 최적화(1)','AI 문서교정 실무(1)','AI 정보검색 및 요약(1)','AI 데이터 관리(1)','AI 회의 관리(1)','AI 클라우드 활용법(1)','AI 협업도구 활용(1)','AI 이메일 커뮤니케이션(1)']},
+  {cat:'AI 기초과정', list:['AI와 메타버스 시대, 윤리적 실천','AI 윤리와 책임','인공지능(AI) 기반의 진로개발 포트폴리오 제작 클래스','AI Lifestyle My GPTer','AI를 활용한 미디어 제작과 혁신적 학습 전략','AI기반 문서작성 마스터(1)','생성형 AI 글쓰기(1)','AI 일정관리 최적화(1)','AI 문서교정 실무(1)','AI 정보검색 및 요약(1)','AI 데이터 관리(1)','AI 회의 관리(1)','AI 클라우드 활용법(1)','AI 협업도구 활용(1)','AI 이메일 커뮤니케이션(1)']},
   {cat:'AI 심화과정', list:['AI기반 문서작성 마스터(2)','생성형 AI 글쓰기(2)','AI 일정관리 최적화(2)','AI 문서교정 실무(2)','AI 정보검색 및 요약(2)']},
 ];
-const ALIAS = {'AI와 메타버스 시대, 윤리적 실천':'AI 윤리와 책임'}; // 25년 과목명 → 현재 과목 자리
+const ALIAS = {}; // 이름만 바뀐 같은 과목이 생기면 '옛 이름':'새 이름'으로 추가
+// 「AI와 메타버스 시대, 윤리적 실천」은 25학년도 과목, 「AI 윤리와 책임」은 26학년도부터 개설된 별개 과목
 const ckey = k => String(ALIAS[k]||k||'').replace(/\s+/g,'').toLowerCase();
 const CORDER = new Map(); CATS.forEach(c=>c.list.forEach(k=>CORDER.set(ckey(k),{cat:c.cat,i:CORDER.size})));
 const cinfo = k => CORDER.get(ckey(k)) || {cat:'기타',i:999};
@@ -416,7 +417,8 @@ VIEWS.summary = () => {
   const gsel = S.g||'교과';
   const rs = rows({allUniv:true}).filter(r=>r.g===gsel);
   const univs = uniq(rs.map(r=>r.u)).sort();
-  const by = groupBy(rs,'k'); const courses=[...by.keys()].sort(byCourse);
+  const by = groupBy(rs,'k'); if(S.sem!=='ALL'&&gsel==='교과') courseMeta(S.sem).forEach(c=>{if(!by.has(c.k)) by.set(c.k,[])}); // 개설했지만 수강생 0명인 과목도 표시
+  const courses=[...by.keys()].sort(byCourse);
   const mode = S.sm||'n';
   const cell = (list)=> mode==='n'?list.length: mode==='d'?list.filter(r=>r.c==='수료').length : (list.filter(r=>r.c!=='수강중').length? pct(list.filter(r=>r.c==='수료').length,list.filter(r=>r.c!=='수강중').length)+'%':'–');
   const cols=[{t:'No',k:'i',n:1,f:r=>r._sub?'':r.i},{t:'구분',k:'cat',f:r=>r._sub?'':esc(r.cat)},{t:'교과목명',k:'k',f:r=>r._sub?`<b>${esc(r.k)}</b>`:esc(r.k)},{t:'합계',k:'tot',n:1,f:r=>r._sub?`<b>${fmt(r.tot)}</b>`:fmt(r.tot)},...univs.map(u=>({t:u.replace(/대학교|대학/,''),k:u,n:1,f:r=>r[u]===0?'<span class="heat0">0</span>':fmt(r[u])}))];
