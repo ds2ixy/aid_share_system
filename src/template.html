@@ -457,7 +457,7 @@ VIEWS.students = () => {
   const courses=uniq(all.map(r=>r.k)).sort(byCourse);
   window._stuExport=()=>download(`공유학점_수강생_${S.sem}_${S.univ}.csv`,toCSV(cols,rs),'text/csv');
   return `<div class="toolbar">
-    <input type="search" placeholder="이름·아이디·대학·교과목 검색" value="${esc(S.q)}" oninput="if(!event.isComposing){S.q=this.value;S.page=0;render(true)}" oncompositionend="S.q=this.value;S.page=0;render(true)" style="min-width:240px" id="qbox">
+    <input type="search" placeholder="이름·아이디·대학·교과목 검색" value="${esc(S.q)}" oninput="if(!event.isComposing){S.q=this.value;S.page=0;render(true)}" style="min-width:240px" id="qbox">
     <select onchange="S.fc=this.value;S.page=0;render()">${['ALL','수료','미수료','수강중'].map(v=>`<option value="${v}" ${S.fc===v?'selected':''}>${v==='ALL'?'수료여부 전체':v}</option>`).join('')}</select>
     <select onchange="S.fk=this.value;S.page=0;render()" style="max-width:260px"><option value="ALL">교과목 전체</option>${courses.map(k=>`<option ${S.fk===k?'selected':''}>${esc(k)}</option>`).join('')}</select>
     ${isPub()?'':'<button class="btn" onclick="_stuExport()">CSV 내려받기</button>'}
@@ -1031,6 +1031,7 @@ function renderShell(){
 }
 function render(keepFocus){
   document.getElementById('view').innerHTML=(VIEWS[S.view]||VIEWS.home)();
+  { const q=document.getElementById('qbox'); if(q) q.addEventListener('compositionend',()=>{ S.q=q.value; S.page=0; render(true); }); }  // 한글 조합이 끝났을 때 검색
   if(keepFocus){const q=document.getElementById('qbox');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
 }
 document.getElementById('univSel').onchange=e=>{S.univ=e.target.value;S.page=0;render()};
