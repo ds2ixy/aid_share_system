@@ -774,15 +774,35 @@ function pubStateHtml(){
   return `<span class="pill p-no">게시용 미반영</span> <span class="meta">${new Date(saved).toLocaleString('ko-KR')}에 고친 내용이 아직 게시용에 없습니다 → 아래 ①②를 해 주세요</span>`;
 }
 async function pubDownload(){ await download('meta.json',JSON.stringify(publishPayload(),null,1),'application/json'); LS.set('metaSentAt',new Date().toISOString()); const el=document.getElementById('pubState'); if(el) el.innerHTML=pubStateHtml(); }
+/* 「게시용에 반영」: Claude Code 연결로 예약 작업을 깨워 GitHub meta.json에 올림 */
+const PUB_TRIGGER='trig_012TmGoPtXjE7SMTHrbR9vDM';
+function changedMeta(){ const lm=LS.get('meta',{}), out={}; Object.entries(lm).forEach(([s,v])=>{ Object.entries(v||{}).forEach(([k,x])=>{ const base=((RAW.meta||{})[s]||{})[k]; if(JSON.stringify(x)!==JSON.stringify(base)) (out[s]=out[s]||{})[k]=x; }); }); return out; }
+async function publishAuto(){
+  const btn=document.getElementById('pubBtn'); const say=(c,m)=>{const el=document.getElementById('pubState'); if(el) el.innerHTML=`<span class="pill ${c}">${c==='p-ok'?'요청 완료':c==='p-no'?'반영 실패':'보내는 중'}</span> <span class="meta">${esc(m)}</span>`;};
+  const ch=changedMeta(); if(!Object.keys(ch).length){ toast('게시용에 반영할 수정 내용이 없습니다'); return; }
+  const text=JSON.stringify({meta:ch});
+  if(text.length>60000){ say('p-no','수정 내용이 너무 커서 버튼으로 보낼 수 없습니다 → 아래 「수동 반영」을 써 주세요'); return; }
+  let mcp=null; try{ mcp=window.claude&&window.claude.use ? await window.claude.use('mcp') : null; }catch(e){}
+  if(!mcp){ say('p-no','이 화면에서는 연결 기능을 쓸 수 없습니다 (claude.ai를 PC 브라우저에서 열어 주세요) → 아래 「수동 반영」'); return; }
+  if(btn) btn.disabled=true; say('p-ing','Claude에게 반영을 요청하는 중…');
+  try{
+    await mcp.callTool('Claude Code Remote','fire_trigger',{trigger_id:PUB_TRIGGER, text});
+    LS.set('metaSentAt',new Date().toISOString());
+    say('p-ok',`${new Date().toLocaleTimeString('ko-KR')} 요청 보냄 · 보통 2~3분 뒤 게시 주소에 반영됩니다`); toast('게시용 반영을 요청했습니다');
+  }catch(e){
+    const c=e&&e.code; const m={not_in_manifest:'연결 허용을 거절했거나 꺼져 있습니다. 화면 위 권한 메뉴에서 Claude Code Remote를 허용해 주세요',server_not_connected:'claude.ai 설정 → 커넥터에 Claude Code 연결이 없습니다',approval_required:'허용 확인이 필요합니다. 다시 눌러 「허용」을 선택해 주세요',blocked_by_policy:'조직 정책으로 막혀 있습니다'}[c]||((c||'')+' '+(e&&e.message||''));
+    say('p-no',m+' → 아래 「수동 반영」을 써도 됩니다');
+  }finally{ if(btn) btn.disabled=false; }
+}
 function publishCard(){
   return `<div class="card" style="margin-bottom:14px"><h2>게시용에 반영하기</h2>
-    <div class="toolbar">상태: <span id="pubState">${pubStateHtml()}</span></div>
-    <div class="hint">여기서 저장한 기본자료·분반·과정책임자·설문 결과를 게시용(<a href="https://ds2ixy.github.io/aid_share_system/" target="_blank" rel="noopener">ds2ixy.github.io/aid_share_system</a>)에 반영하는 방법입니다. 학생 이름·아이디는 들어가지 않습니다. claude.ai 화면은 보안상 GitHub에 직접 올릴 수 없어 두 단계로 합니다.</div>
-    <ol style="margin:8px 0 4px;padding-left:20px;line-height:2">
-      <li><button class="btn pri" onclick="pubDownload()">① 반영 파일 받기 (meta.json)</button></li>
-      <li><a class="btn" href="${UPLOAD_URL}" target="_blank" rel="noopener">② GitHub 업로드 화면 열기 ↗</a> → 받은 <b>meta.json</b>을 끌어다 놓고 → 아래 초록 버튼 <b>Commit changes</b></li>
-    </ol>
-    <p class="meta" style="margin:4px 0 0">1분쯤 뒤 게시 주소에 반영됩니다. 같은 이름 파일을 올리면 자동으로 덮어씁니다.</p></div>`;
+    <div class="toolbar"><button class="btn pri" id="pubBtn" onclick="publishAuto()" style="font-size:15px;padding:8px 18px">🚀 게시용에 반영</button> <span id="pubState">${pubStateHtml()}</span></div>
+    <div class="hint">여기서 저장한 기본자료·분반·과정책임자·설문 결과를 버튼 한 번으로 게시용(<a href="https://ds2ixy.github.io/aid_share_system/" target="_blank" rel="noopener">ds2ixy.github.io/aid_share_system</a>)에 올립니다. 학생 이름·아이디는 보내지 않습니다. 처음 누를 때 claude.ai가 「Claude Code Remote 사용 허용」을 한 번 묻습니다.</div>
+    <details><summary class="meta" style="cursor:pointer">수동 반영 (버튼이 안 될 때)</summary>
+      <ol style="margin:8px 0 4px;padding-left:20px;line-height:2">
+        <li><button class="btn" onclick="pubDownload()">① 반영 파일 받기 (meta.json)</button></li>
+        <li><a class="btn" href="${UPLOAD_URL}" target="_blank" rel="noopener">② GitHub 업로드 화면 열기 ↗</a> → meta.json 끌어다 놓기 → <b>Commit changes</b></li>
+      </ol></details></div>`;
 }
 function saveInput(sem){
   const info={}; document.querySelectorAll('[data-k]').forEach(e=>info[e.dataset.k]=e.value.trim());
